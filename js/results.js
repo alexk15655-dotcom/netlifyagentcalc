@@ -107,6 +107,9 @@ function renderAllTabs() {
   applyFraudFilters();
 }
 
+/**
+ * ИСПРАВЛЕНО: Рендеринг ФГ с диагностикой и правильной группировкой касс
+ */
 function renderGroupedTable(data, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -141,7 +144,7 @@ function renderGroupedTable(data, containerId) {
   
   const tbody = table.createTBody();
   
-  // Разделяем ФГ и остальное
+  // Разделяем ФГ, кассы, итого
   const fgRows = [];
   const cashierRows = [];
   let overallRow = null;
@@ -156,9 +159,11 @@ function renderGroupedTable(data, containerId) {
     }
   });
   
-  // Рендерим: ФГ → разделитель → кассы → разделитель → итого
+  console.log('[Render] ФГ строк:', fgRows.length);
+  console.log('[Render] Игроков:', cashierRows.length);
+  console.log('[Render] Итого:', overallRow ? 'да' : 'нет');
   
-  // 1. Финансовые группы
+  // 1. Финансовые группы (уже должны быть наверху после processor.js)
   if (fgRows.length > 0) {
     const separatorRow = tbody.insertRow();
     separatorRow.className = 'separator-row';
@@ -166,9 +171,15 @@ function renderGroupedTable(data, containerId) {
     td.colSpan = headers.length;
     td.textContent = '═══ Финансовые группы ═══';
     
-    fgRows.forEach(row => {
+    console.log('[Render] Рендерим', fgRows.length, 'строк ФГ');
+    
+    fgRows.forEach((row, idx) => {
       const tr = tbody.insertRow();
       tr.className = 'fg-row';
+      
+      if (idx === 0) {
+        console.log('[Render FG] Первая строка ФГ:', row);
+      }
       
       headers.forEach(header => {
         const td = tr.insertCell();
@@ -186,31 +197,44 @@ function renderGroupedTable(data, containerId) {
         }
       });
     });
+  } else {
+    console.warn('[Render] ФГ строки не найдены!');
   }
   
-  // 2. Кассы с игроками
+  // 2. Кассы с игроками (ИСПРАВЛЕНО: используем _cashierColumn)
   if (cashierRows.length > 0) {
-    // Группируем по кассам
-    const grouped = {};
-    let currentCashier = null;
+    const cashierKey = cashierRows[0]?._cashierColumn;
     
-    cashierRows.forEach(row => {
-      const cashierValue = Object.values(row).find(v => 
-        String(v).match(/^\d+[,\s]/) || String(v).includes('Baku') || String(v).includes('Кассa')
-      );
+    if (!cashierKey) {
+      console.error('[Render] ОШИБКА: _cashierColumn не найдена в строках!');
+      console.error('[Render] Первая строка:', cashierRows[0]);
+    } else {
+      console.log('[Render] Группировка по колонке:', cashierKey);
+    }
+    
+    // Группируем по правильной колонке кассы
+    const grouped = {};
+    
+    cashierRows.forEach((row, idx) => {
+      const cashier = cashierKey ? String(row[cashierKey] || '').trim() : 'Неизвестно';
       
-      if (cashierValue && cashierValue !== currentCashier) {
-        currentCashier = cashierValue;
-        grouped[currentCashier] = [];
+      if (idx === 0) {
+        console.log('[Render] Пример игрока:', row);
+        console.log('[Render] Касса:', cashier);
       }
       
-      if (currentCashier) {
-        grouped[currentCashier].push(row);
+      if (!grouped[cashier]) {
+        grouped[cashier] = [];
       }
+      grouped[cashier].push(row);
     });
     
+    console.log('[Render] Касс найдено:', Object.keys(grouped).length);
+    
     // Рендерим кассы с разделителями
-    Object.entries(grouped).forEach(([cashier, rows]) => {
+    Object.keys(grouped).sort().forEach(cashier => {
+      const rows = grouped[cashier];
+      
       const separatorRow = tbody.insertRow();
       separatorRow.className = 'separator-row';
       const td = separatorRow.insertCell();
