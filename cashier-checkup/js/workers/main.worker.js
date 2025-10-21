@@ -3,7 +3,6 @@
 // Импорт модулей обработки
 importScripts(
   '../core/processor.js',
-  '../core/name-checker.js',
   '../core/fraud-analyzer.js',
   '../core/fg-summary.js'
 );
@@ -13,7 +12,6 @@ self.onmessage = function(e) {
   const { mainData, prepayData, config } = e.data;
   
   try {
-    // Валидация данных
     if (!mainData || mainData.length === 0) {
       throw new Error('Основной файл пуст');
     }
@@ -29,15 +27,11 @@ self.onmessage = function(e) {
     const grouped = groupData(processed, config.cashierColumn);
     console.log('[Worker] ✓ Данные сгруппированы');
     
-    // 3. Проверка имен
-    const nameCheck = checkNames(processed);
-    console.log('[Worker] ✓ Имена проверены');
-    
-    // 4. Анализ фрода
+    // 3. Анализ фрода
     const fraudAnalysis = analyzeFraud(processed, config.cashierColumn, config.fraudConfig);
     console.log('[Worker] ✓ Фрод-анализ выполнен');
     
-    // 5. Сводка по ФГ (если включено)
+    // 4. Сводка по ФГ (если включено)
     let fgSummary = null;
     if (config.createSummary) {
       fgSummary = createFGSummary(grouped, prepayData);
@@ -48,7 +42,6 @@ self.onmessage = function(e) {
     self.postMessage({
       processed,
       grouped,
-      nameCheck,
       fraudAnalysis,
       fgSummary,
       config,

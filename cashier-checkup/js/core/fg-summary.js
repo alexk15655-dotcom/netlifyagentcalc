@@ -1,9 +1,5 @@
 'use strict';
 
-/**
- * Создает сводку по финансовым группам
- * Портировано из createFGSummary() в .gs файле
- */
 function createFGSummary(groupedData, prepayData) {
   console.log('[FG Summary] Создание сводки');
   
@@ -11,7 +7,6 @@ function createFGSummary(groupedData, prepayData) {
     return null;
   }
   
-  // Находим строки ФГ
   const fgRows = groupedData.filter(row => row._isFG);
   
   if (fgRows.length === 0) {
@@ -22,11 +17,10 @@ function createFGSummary(groupedData, prepayData) {
   const headers = Object.keys(fgRows[0]);
   const cashierKey = fgRows[0]._cashierColumn;
   
-  // Строим сводку для каждой ФГ
-  const summary = [];
+  // Группируем строки ФГ по имени ФГ
+  const fgGroups = {};
   
   fgRows.forEach(fgRow => {
-    // Извлекаем имя ФГ
     const col0 = String(fgRow[headers[0]] || '');
     const col1 = String(fgRow[headers[1]] || '');
     
@@ -43,73 +37,115 @@ function createFGSummary(groupedData, prepayData) {
     
     if (!fgName) return;
     
-    // Извлекаем ID кассы
-    const cashierId = extractCashierId(cashierInfo);
+    // Инициализируем группу если её нет
+    if (!fgGroups[fgName]) {
+      fgGroups[fgName] = {
+        fgName: fgName,
+        cashiers: [],
+        cashierIds: [],
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        totalCommission: 0,
+        totalProfit: 0,
+        depositCounts: [],
+        withdrawalCounts: [],
+        deposits: [],
+        withdrawals: []
+      };
+    }
     
-    // Получаем данные из строки ФГ
+    const group = fgGroups[fgName];
+    
+    // Добавляем кассу
+    const fullCashierName = String(fgRow[cashierKey] || cashierInfo).trim();
+    group.cashiers.push(fullCashierName);
+    
+    const cashierId = extractCashierId(fullCashierName);
+    group.cashierIds.push(cashierId);
+    
+    // Суммируем данные
     const parseNum = (val) => parseFloat(String(val).replace(/[\s,]/g, '')) || 0;
     
-    const totalDeposits = parseNum(
+    group.totalDeposits += parseNum(
       fgRow['Сумма пополнений (в валюте админа по курсу текущего дня)'] ||
       fgRow['Сумма пополнений (в валюте админа)'] || 0
     );
     
-    const totalWithdrawals = parseNum(
+    group.totalWithdrawals += parseNum(
       fgRow['Сумма вывода (в валюте админа по курсу текущего дня)'] ||
       fgRow['Сумма вывода (в валюте админа)'] || 0
     );
     
     const depCount = parseNum(fgRow['Количество пополнений'] || 0);
     const withCount = parseNum(fgRow['Количество выводов'] || 0);
-    const commission = parseNum(fgRow['Комиссия'] || 0);
-    const profit = parseNum(fgRow['Профит'] || 0);
     
-    // Ищем prepayment для этой ФГ
+    if (depCount > 0) group.depositCounts.push(depCount);
+    if (withCount > 0) group.withdrawalCounts.push(withCount);
+    
+    group.totalCommission += parseNum(fgRow['Комиссия'] || 0);
+    group.totalProfit += parseNum(fgRow['Профит'] || 0);
+    
+    // Средние депозиты/выводы
+    const avgDep = parseNum(fgRow['Средний депозит'] || 0);
+    const avgWith = parseNum(fgRow['Средний вывод'] || 0);
+    
+    if (avgDep > 0) group.deposits.push(avgDep);
+    if (avgWith > 0) group.withdrawals.push(avgWith);
+  });
+  
+  // Формируем итоговую сводку
+  const summary = [];
+  
+  Object.values(fgGroups).forEach(group => {
+    // Получаем prepayment
     let prepaidAmount = 0;
     if (prepayData && prepayData.length > 0) {
       const prepayRow = prepayData.find(p => {
         const prepayFG = String(p['Фин. группа'] || p['Финансовая группа'] || '').trim();
-        return prepayFG.includes(fgName) || fgName.includes(prepayFG);
+        return prepayFG.includes(group.fgName) || group.fgName.includes(prepayFG);
       });
       
       if (prepayRow) {
-        prepaidAmount = parseNum(
-          prepayRow['Сумма пополнений (в валюте админа)'] ||
-          prepayRow['Сумма пополнений'] || 0
-        );
+        prepaidAmount = parseFloat(
+          String(prepayRow['Сумма пополнений (в валюте админа)'] || 
+                 prepayRow['Сумма пополнений'] || 0).replace(/[\s,]/g, '')
+        ) || 0;
       }
     }
     
     // Считаем количество игроков
-    const playerCount = countPlayersForCashier(groupedData, cashierInfo, cashierKey);
+    const playerCount = countPlayersForCashiers(groupedData, group.cashierIds, cashierKey);
     
     // Рассчитываем метрики
-    const depositToWithdrawalPercent = totalWithdrawals > 0 ?
-      (totalDeposits / totalWithdrawals * 100) : 0;
+    const depositToWithdrawalPercent = group.totalWithdrawals > 0 ?
+      (group.totalDeposits / group.totalWithdrawals * 100) : 0;
     
-    const coveragePercent = totalDeposits > 0 ?
-      (prepaidAmount / totalDeposits * 100) : 0;
+    const coveragePercent = group.totalDeposits > 0 ?
+      (prepaidAmount / group.totalDeposits * 100) : 0;
     
-    const avgDeposit = depCount > 0 ? totalDeposits / depCount : 0;
-    const avgWithdrawal = withCount > 0 ? totalWithdrawals / withCount : 0;
+    const avgDeposit = group.deposits.length > 0 ?
+      group.deposits.reduce((a, b) => a + b, 0) / group.deposits.length : 0;
+    
+    const avgWithdrawal = group.withdrawals.length > 0 ?
+      group.withdrawals.reduce((a, b) => a + b, 0) / group.withdrawals.length : 0;
     
     // Формируем строку экспорта
-    const exportString = `${cashierId},${round2(totalDeposits)},${round2(prepaidAmount)},${playerCount}`;
+    const exportString = `${group.cashierIds[0] || ''},${round2(group.totalDeposits)},${round2(prepaidAmount)},${playerCount}`;
     
     summary.push({
-      'ФГ': fgName,
-      'Кассы': cashierInfo,
-      'Сумма пополнений ($)': round2(totalDeposits),
+      'ФГ': group.fgName,
+      'Кассы': group.cashiers.join(', '),
+      'Сумма пополнений ($)': round2(group.totalDeposits),
       'Сумма предоплат ($)': round2(prepaidAmount),
       'Количество игроков': playerCount,
-      'Сумма выводов ($)': round2(totalWithdrawals),
+      'Сумма выводов ($)': round2(group.totalWithdrawals),
       'Соотношение ввод/вывод (%)': round2(depositToWithdrawalPercent),
       'Покрытие предоплатами (%)': round2(coveragePercent),
-      'Комиссия ($)': round2(commission),
+      'Комиссия ($)': round2(group.totalCommission),
       'Средний депозит ($)': round2(avgDeposit),
       'Средний вывод ($)': round2(avgWithdrawal),
-      'Профит ($)': round2(profit),
-      'Количество касс': 1,
+      'Профит ($)': round2(group.totalProfit),
+      'Количество касс': group.cashiers.length,
       'Export': exportString
     });
   });
@@ -118,17 +154,16 @@ function createFGSummary(groupedData, prepayData) {
   return summary;
 }
 
-function countPlayersForCashier(data, cashierInfo, cashierKey) {
-  const cashierId = extractCashierId(cashierInfo);
-  
+function countPlayersForCashiers(data, cashierIds, cashierKey) {
   let count = 0;
+  
   data.forEach(row => {
     if (row._isFG || row._isOverall || row._separator) return;
     
     const rowCashier = String(row[cashierKey] || '');
     const rowCashierId = extractCashierId(rowCashier);
     
-    if (rowCashierId === cashierId) {
+    if (cashierIds.includes(rowCashierId)) {
       count++;
     }
   });
@@ -145,7 +180,6 @@ function round2(num) {
   return Math.round(num * 100) / 100;
 }
 
-// Экспорт для Web Worker
 if (typeof self !== 'undefined' && self.importScripts) {
   self.createFGSummary = createFGSummary;
 }

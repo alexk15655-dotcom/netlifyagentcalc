@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <!-- CSP: запрет внешних соединений -->
   <meta http-equiv="Content-Security-Policy" 
         content="default-src 'self'; 
                  script-src 'self' 'unsafe-inline'; 
@@ -63,7 +62,6 @@
             <option value="11">L (12-я колонка)</option>
             <option value="12" selected>M (13-я колонка)</option>
           </select>
-          <small class="hint">Выберите колонку, где находятся данные кассы</small>
         </div>
         
         <div class="config-item">
@@ -85,7 +83,7 @@
       </div>
       
       <button type="button" id="advancedBtn" class="btn-secondary" onclick="toggleAdvanced()">
-        ⚙️ Настройки фрод-анализа
+        ⚙️ Расширенные настройки
       </button>
       
       <div id="advancedSettings" class="advanced-settings" style="display:none;">
@@ -95,25 +93,56 @@
           <div class="config-item">
             <label for="highWithdrawalRatio">Высокие выводы (%)</label>
             <input type="number" id="highWithdrawalRatio" value="110" step="1" min="100" max="500">
-            <small class="hint">Выводы/Депозиты > этого значения</small>
           </div>
           
           <div class="config-item">
             <label for="minAmountAnalysis">Мин. сумма анализа ($)</label>
             <input type="number" id="minAmountAnalysis" value="100" step="10" min="0">
-            <small class="hint">Игроки с депозитом меньше игнорируются</small>
           </div>
           
           <div class="config-item">
             <label for="emptyAccountThreshold">Порог пустых аккаунтов</label>
             <input type="number" id="emptyAccountThreshold" value="10" step="1" min="1">
-            <small class="hint">Мин. кол-во для детекта</small>
           </div>
           
           <div class="config-item">
-            <label for="nameSimilarityThreshold">Похожесть имен (%)</label>
+            <label for="nameSimilarityThreshold">Похожесть имен агент/игрок (%)</label>
             <input type="number" id="nameSimilarityThreshold" value="70" step="1" min="50" max="100">
-            <small class="hint">Для детекта мультиаккаунтов</small>
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountThreshold">Мультиаккаунты: мин. кол-во</label>
+            <input type="number" id="multiAccountThreshold" value="3" step="1" min="2">
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountLowLoss">Мультиаккаунты: LOW порог ($)</label>
+            <input type="number" id="multiAccountLowLoss" value="75" step="1" min="0">
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountMediumLoss">Мультиаккаунты: MEDIUM порог ($)</label>
+            <input type="number" id="multiAccountMediumLoss" value="150" step="1" min="0">
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountMediumCount">Мультиаккаунты: MEDIUM кол-во</label>
+            <input type="number" id="multiAccountMediumCount" value="5" step="1" min="2">
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountHighLoss">Мультиаккаунты: HIGH порог ($)</label>
+            <input type="number" id="multiAccountHighLoss" value="500" step="1" min="0">
+          </div>
+          
+          <div class="config-item">
+            <label for="multiAccountHighCount">Мультиаккаунты: HIGH кол-во</label>
+            <input type="number" id="multiAccountHighCount" value="10" step="1" min="2">
+          </div>
+          
+          <div class="config-item">
+            <label for="nameSimilarityMulti">Похожесть для мультиаккаунтов (%)</label>
+            <input type="number" id="nameSimilarityMulti" value="80" step="1" min="50" max="100">
           </div>
         </div>
       </div>
@@ -130,13 +159,10 @@
   <footer>
     <a href="privacy-policy.html">Политика приватности</a>
     <span>•</span>
-    <span>Версия 1.0</span>
+    <span>Версия 1.1</span>
   </footer>
   
-  <!-- PapaParse для парсинга CSV -->
   <script src="lib/papaparse.min.js"></script>
-  
-  <!-- Наш код -->
   <script src="js/csv-loader.js"></script>
   <script src="js/app.js"></script>
 </body>

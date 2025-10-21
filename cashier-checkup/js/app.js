@@ -1,39 +1,42 @@
 'use strict';
 
-// Состояние приложения
 const appState = {
   mainData: null,
   prepayData: null,
   config: {
-    cashierColumn: 12,  // M колонка по умолчанию
+    cashierColumn: 12,
     depCommission: 5,
     withCommission: 2,
     createSummary: true,
-    // Константы фрод-анализа
     fraudConfig: {
       HIGH_WITHDRAWAL_RATIO: 1.1,
       MIN_AMOUNT_FOR_ANALYSIS: 100,
       EMPTY_ACCOUNT_THRESHOLD: 10,
-      NAME_SIMILARITY_THRESHOLD: 0.7
+      NAME_SIMILARITY_THRESHOLD: 0.7,
+      MULTI_ACCOUNT_THRESHOLD: 3,
+      MULTI_ACCOUNT_LOW_LOSS: 75,
+      MULTI_ACCOUNT_MEDIUM_LOSS: 150,
+      MULTI_ACCOUNT_MEDIUM_COUNT: 5,
+      MULTI_ACCOUNT_HIGH_LOSS: 500,
+      MULTI_ACCOUNT_HIGH_COUNT: 10,
+      NAME_SIMILARITY_MULTI: 0.8
     }
   }
 };
 
-// Раскрытие расширенных настроек
 function toggleAdvanced() {
   const settings = document.getElementById('advancedSettings');
   const btn = document.getElementById('advancedBtn');
   
   if (settings.style.display === 'none') {
     settings.style.display = 'block';
-    btn.textContent = '▲ Скрыть настройки фрод-анализа';
+    btn.textContent = '▲ Скрыть расширенные настройки';
   } else {
     settings.style.display = 'none';
-    btn.textContent = '⚙️ Настройки фрод-анализа';
+    btn.textContent = '⚙️ Расширенные настройки';
   }
 }
 
-// Инициализация
 document.addEventListener('DOMContentLoaded', () => {
   initFileInputs();
   initConfigInputs();
@@ -52,16 +55,13 @@ function handleFileSelect(event, type) {
   const file = event.target.files[0];
   if (!file) return;
   
-  // Обновить UI
   const filenameElement = document.getElementById(`${type}Filename`);
   filenameElement.textContent = file.name;
   filenameElement.style.color = '#667eea';
   filenameElement.style.fontWeight = '500';
   
-  // Показать статус
   updateStatus(`Загрузка ${file.name}...`, 'info');
   
-  // ВАЖНО: loadCSV работает ТОЛЬКО локально через FileReader
   loadCSV(file, (data) => {
     if (type === 'main') {
       appState.mainData = data;
@@ -94,7 +94,7 @@ function initConfigInputs() {
     appState.config.createSummary = e.target.checked;
   });
   
-  // Константы фрод-анализа
+  // Расширенные настройки
   document.getElementById('highWithdrawalRatio').addEventListener('input', (e) => {
     appState.config.fraudConfig.HIGH_WITHDRAWAL_RATIO = parseFloat(e.target.value) / 100;
   });
@@ -110,6 +110,34 @@ function initConfigInputs() {
   document.getElementById('nameSimilarityThreshold').addEventListener('input', (e) => {
     appState.config.fraudConfig.NAME_SIMILARITY_THRESHOLD = parseFloat(e.target.value) / 100;
   });
+  
+  document.getElementById('multiAccountThreshold').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_THRESHOLD = parseInt(e.target.value);
+  });
+  
+  document.getElementById('multiAccountLowLoss').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_LOW_LOSS = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('multiAccountMediumLoss').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_MEDIUM_LOSS = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('multiAccountMediumCount').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_MEDIUM_COUNT = parseInt(e.target.value);
+  });
+  
+  document.getElementById('multiAccountHighLoss').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_HIGH_LOSS = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('multiAccountHighCount').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MULTI_ACCOUNT_HIGH_COUNT = parseInt(e.target.value);
+  });
+  
+  document.getElementById('nameSimilarityMulti').addEventListener('input', (e) => {
+    appState.config.fraudConfig.NAME_SIMILARITY_MULTI = parseFloat(e.target.value) / 100;
+  });
 }
 
 function initProcessButton() {
@@ -121,18 +149,46 @@ function updateProcessButton() {
   btn.disabled = !appState.mainData;
 }
 
+// IndexedDB для больших данных
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('CashierCheckupDB', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('results')) {
+        db.createObjectStore('results');
+      }
+    };
+  });
+}
+
+function saveResults(results) {
+  return openDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['results'], 'readwrite');
+      const store = transaction.objectStore('results');
+      const request = store.put(results, 'lastProcessing');
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  });
+}
+
 function processData() {
   const btn = document.getElementById('processBtn');
   const btnText = btn.querySelector('.btn-text');
   const btnLoader = btn.querySelector('.btn-loader');
   
-  // UI feedback
   btn.disabled = true;
   btnText.style.display = 'none';
   btnLoader.style.display = 'inline';
   updateStatus('Обработка данных...', 'info');
   
-  // КРИТИЧНО: Web Worker работает ЛОКАЛЬНО
   const worker = new Worker('js/workers/main.worker.js');
   
   worker.postMessage({
@@ -152,11 +208,17 @@ function processData() {
       return;
     }
     
-    // Сохранить результаты в sessionStorage (локально в браузере)
-    sessionStorage.setItem('cashierCheckupResults', JSON.stringify(results));
-    
-    // Перейти на страницу результатов
-    window.location.href = 'results.html';
+    // Сохраняем в IndexedDB вместо sessionStorage
+    saveResults(results)
+      .then(() => {
+        window.location.href = 'results.html';
+      })
+      .catch(error => {
+        updateStatus(`✗ Ошибка сохранения: ${error.message}`, 'error');
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoader.style.display = 'none';
+      });
     
     worker.terminate();
   };
