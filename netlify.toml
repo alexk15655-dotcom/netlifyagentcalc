@@ -1,0 +1,32 @@
+[build]
+  publish = "."
+  
+# Заголовки безопасности
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Запрет встраивания в iframe
+    X-Frame-Options = "DENY"
+    
+    # Защита от XSS
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    
+    # CSP: запрет внешних соединений
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data:; font-src 'self';"
+    
+    # Referrer policy
+    Referrer-Policy = "no-referrer"
+    
+    # Permissions policy
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+    
+    # HSTS (для HTTPS)
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+# Редиректы для SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
