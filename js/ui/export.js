@@ -1,8 +1,5 @@
 'use strict';
 
-/**
- * Экспортирует данные в CSV файл
- */
 function exportCSV(tabName) {
   const results = window.cashierCheckupResults;
   if (!results) {
@@ -18,16 +15,12 @@ function exportCSV(tabName) {
       data = results.grouped.filter(row => !row._separator);
       filename = 'processed_data';
       break;
-    case 'nameCheck':
-      data = results.nameCheck;
-      filename = 'name_check';
-      break;
     case 'fgSummary':
       data = results.fgSummary;
       filename = 'fg_summary';
       break;
     case 'fraud':
-      data = results.fraudAnalysis;
+      data = formatFraudForExport(results.fraudAnalysis);
       filename = 'fraud_analysis';
       break;
     default:
@@ -40,7 +33,6 @@ function exportCSV(tabName) {
     return;
   }
   
-  // Убираем служебные поля
   const cleanData = data.map(row => {
     const clean = {};
     Object.keys(row).forEach(key => {
@@ -51,17 +43,14 @@ function exportCSV(tabName) {
     return clean;
   });
   
-  // Конвертируем в CSV с точкой с запятой и запятой для десятичных
   const csv = Papa.unparse(cleanData, {
     delimiter: ';',
     quotes: true,
     header: true
   });
   
-  // Заменяем точку на запятую в числах (европейский формат)
   const csvEuropean = csv.replace(/(\d)\.(\d)/g, '$1,$2');
   
-  // Создаем blob и скачиваем
   const blob = new Blob(['\uFEFF' + csvEuropean], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
@@ -74,6 +63,51 @@ function exportCSV(tabName) {
   URL.revokeObjectURL(url);
   
   console.log('[Export] Экспортировано:', cleanData.length, 'строк');
+}
+
+function formatFraudForExport(fraudCases) {
+  const groupedCases = {};
+  
+  fraudCases.forEach(fraudCase => {
+    const agentName = fraudCase.agentName || 'Неизвестный агент';
+    if (!groupedCases[agentName]) {
+      groupedCases[agentName] = [];
+    }
+    groupedCases[agentName].push(fraudCase);
+  });
+  
+  const sortedAgents = Object.keys(groupedCases).sort();
+  const reportData = [];
+  
+  sortedAgents.forEach(agentName => {
+    const cases = groupedCases[agentName].sort((a, b) => {
+      const severityOrder = { 'HIGH': 0, 'MEDIUM': 1, 'LOW': 2 };
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    });
+    
+    let isFirstCaseForAgent = true;
+    cases.forEach(fraudCase => {
+      fraudCase.cashiers.forEach((cashier) => {
+        const cashierId = extractCashierId(cashier);
+        
+        reportData.push({
+          'Агент': isFirstCaseForAgent ? agentName : '',
+          '№ Кассы': cashierId,
+          'ID игрока': fraudCase.playerId || '',
+          'Комментарий': fraudCase.details
+        });
+        
+        isFirstCaseForAgent = false;
+      });
+    });
+  });
+  
+  return reportData;
+}
+
+function extractCashierId(cashierStr) {
+  const match = String(cashierStr).match(/(\d+)[,\s]/);
+  return match ? match[1] : cashierStr;
 }
 
 function getTimestamp() {

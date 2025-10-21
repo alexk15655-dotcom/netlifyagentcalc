@@ -84,12 +84,7 @@ function switchTab(tabId) {
 function renderAllTabs() {
   const results = cashierCheckupResults;
   
-  // 1. Калькуляция - ИСПРАВЛЕНО: рендерим с нужными колонками
-  if (results.grouped && results.grouped.length > 0) {
-    renderGroupedTable(results.grouped, 'processedTable');
-  }
-  
-  // 2. Сводка ФГ
+  // 1. Сводка ФГ (теперь первый таб)
   if (results.fgSummary && results.fgSummary.length > 0) {
     renderTable(results.fgSummary, 'fgSummaryTable');
   } else {
@@ -101,16 +96,19 @@ function renderAllTabs() {
     `;
   }
   
+  // 2. Калькуляция - виртуализация для больших данных
+  if (results.grouped && results.grouped.length > 0) {
+    renderGroupedTableVirtualized(results.grouped, 'processedTable');
+  }
+  
   // 3. Фрод-анализ
   window.allFraudCases = results.fraudAnalysis || [];
   window.filteredFraudCases = [...window.allFraudCases];
   applyFraudFilters();
 }
 
-/**
- * ИСПРАВЛЕНО: Рендерим НУЖНЫЕ колонки для игроков
- */
-function renderGroupedTable(data, containerId) {
+// Виртуализированная таблица для больших данных
+function renderGroupedTableVirtualized(data, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   
@@ -126,47 +124,103 @@ function renderGroupedTable(data, containerId) {
     return;
   }
   
-  const table = document.createElement('table');
-  table.className = 'data-table';
+  const CHUNK_SIZE = 100;
+  let currentChunk = 0;
   
-  // ИСПРАВЛЕНИЕ: Точные колонки как в задаче
+  const headerMap = {
+    'Номер игрока': 'ID',
+    'Игрок': 'Имя',
+    'Сумма пополнений': 'Деп.',
+    'Сумма вывода': 'Выв.',
+    'Сумма пополнений (в валюте админа по курсу текущего дня)': 'Деп. USD',
+    'Сумма вывода (в валюте админа по курсу текущего дня)': 'Выв. USD',
+    'Количество пополнений': '№ Деп.',
+    'Количество выводов': '№ Выв.',
+    'Касса': 'Касса',
+    'Комиссия': 'Ком.',
+    'Средний депозит': 'Ср. Деп.',
+    'Средний вывод': 'Ср. Выв.',
+    'Профит': 'Профит'
+  };
+  
   const displayHeaders = [
-    'Номер игрока',
-    'Игрок',
-    'Сумма пополнений',
-    'Сумма вывода',
+    'Номер игрока', 'Игрок', 'Сумма пополнений', 'Сумма вывода',
     'Сумма пополнений (в валюте админа по курсу текущего дня)',
     'Сумма вывода (в валюте админа по курсу текущего дня)',
-    'Количество пополнений',
-    'Количество выводов',
-    'Касса',
-    'Комиссия',
-    'Средний депозит',
-    'Средний вывод',
-    'Профит'
+    'Количество пополнений', 'Количество выводов', 'Касса',
+    'Комиссия', 'Средний депозит', 'Средний вывод', 'Профит'
   ];
+  
+  const wrapper = document.createElement('div');
+  wrapper.className = 'virtualized-table-wrapper';
+  wrapper.style.overflowY = 'auto';
+  wrapper.style.maxHeight = 'calc(100vh - 300px)';
+  
+  const table = document.createElement('table');
+  table.className = 'data-table';
   
   const thead = table.createTHead();
   const headerRow = thead.insertRow();
   
   displayHeaders.forEach((header, index) => {
     const th = document.createElement('th');
-    th.textContent = header;
+    th.textContent = headerMap[header] || header;
+    th.title = header;
     th.onclick = () => sortTable(table, index);
-    th.title = 'Кликните для сортировки';
     headerRow.appendChild(th);
   });
   
   const tbody = table.createTBody();
+  tbody.id = 'virtualizedBody';
   
-  // Разделяем ФГ, игроков, итого
   const fgRows = data.filter(row => row._isFG);
   const playerRows = data.filter(row => !row._isFG && !row._isOverall && !row._separator);
   const overallRow = data.find(row => row._isOverall);
   
-  console.log('[Render] ФГ:', fgRows.length, 'Игроков:', playerRows.length);
+  function renderChunk(chunk) {
+    const start = chunk * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, playerRows.length);
+    const rows = playerRows.slice(start, end);
+    
+    const grouped = {};
+    const cashierKey = playerRows[0]?._cashierColumn || 'Касса';
+    
+    rows.forEach(row => {
+      const cashier = String(row[cashierKey] || 'Неизвестно').trim();
+      if (!grouped[cashier]) grouped[cashier] = [];
+      grouped[cashier].push(row);
+    });
+    
+    Object.keys(grouped).sort().forEach(cashier => {
+      const separatorRow = tbody.insertRow();
+      separatorRow.className = 'separator-row';
+      const td = separatorRow.insertCell();
+      td.colSpan = displayHeaders.length;
+      td.textContent = `─── ${cashier} ───`;
+      
+      grouped[cashier].forEach(row => {
+        const tr = tbody.insertRow();
+        
+        displayHeaders.forEach(header => {
+          const td = tr.insertCell();
+          const value = row[header];
+          
+          if (typeof value === 'number' || !isNaN(parseFloat(value))) {
+            const num = parseFloat(value);
+            td.textContent = formatNumber(num);
+            
+            if (header === 'Профит') {
+              td.className = num >= 0 ? 'num-positive' : 'num-negative';
+            }
+          } else {
+            td.textContent = value || '';
+          }
+        });
+      });
+    });
+  }
   
-  // 1. ФГ секция
+  // ФГ
   if (fgRows.length > 0) {
     const separatorRow = tbody.insertRow();
     separatorRow.className = 'separator-row';
@@ -196,55 +250,19 @@ function renderGroupedTable(data, containerId) {
     });
   }
   
-  // 2. Игроки по кассам - ИСПРАВЛЕНО: используем _cashierColumn
-  if (playerRows.length > 0) {
-    const cashierKey = playerRows[0]?._cashierColumn || 'Касса';
-    
-    // Группируем по кассе
-    const grouped = {};
-    playerRows.forEach(row => {
-      const cashier = String(row[cashierKey] || 'Неизвестно').trim();
-      if (!grouped[cashier]) {
-        grouped[cashier] = [];
-      }
-      grouped[cashier].push(row);
-    });
-    
-    console.log('[Render] Касс найдено:', Object.keys(grouped).length);
-    
-    // Рендерим каждую кассу
-    Object.keys(grouped).sort().forEach(cashier => {
-      const rows = grouped[cashier];
-      
-      const separatorRow = tbody.insertRow();
-      separatorRow.className = 'separator-row';
-      const td = separatorRow.insertCell();
-      td.colSpan = displayHeaders.length;
-      td.textContent = `─── ${cashier} ───`;
-      
-      rows.forEach(row => {
-        const tr = tbody.insertRow();
-        
-        displayHeaders.forEach(header => {
-          const td = tr.insertCell();
-          const value = row[header];
-          
-          if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-            const num = parseFloat(value);
-            td.textContent = formatNumber(num);
-            
-            if (header === 'Профит') {
-              td.className = num >= 0 ? 'num-positive' : 'num-negative';
-            }
-          } else {
-            td.textContent = value || '';
-          }
-        });
-      });
-    });
-  }
+  renderChunk(0);
   
-  // 3. Итого
+  // Ленивая загрузка
+  wrapper.onscroll = () => {
+    if (wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 100) {
+      currentChunk++;
+      if (currentChunk * CHUNK_SIZE < playerRows.length) {
+        renderChunk(currentChunk);
+      }
+    }
+  };
+  
+  // Итого
   if (overallRow) {
     const separatorRow = tbody.insertRow();
     separatorRow.className = 'separator-row';
@@ -272,7 +290,8 @@ function renderGroupedTable(data, containerId) {
     });
   }
   
-  container.appendChild(table);
+  wrapper.appendChild(table);
+  container.appendChild(wrapper);
 }
 
 function renderTable(data, containerId) {
@@ -365,9 +384,6 @@ function sortTable(table, columnIndex) {
   rows.forEach(row => tbody.appendChild(row));
 }
 
-/**
- * ИСПРАВЛЕНО: Группировка фрода как в GS - severity → agent → внутри severity
- */
 function applyFraudFilters() {
   const allCases = window.allFraudCases || [];
   
@@ -444,9 +460,6 @@ function renderFraudFlat(cases, containerId) {
   });
 }
 
-/**
- * ИСПРАВЛЕНО: Группировка как в GS - severity (HIGH/MEDIUM/LOW) → agent
- */
 function renderFraudGroupedBySeverity(cases, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -463,7 +476,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     return;
   }
   
-  // Группируем: severity → agent → cases
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   cases.forEach(c => {
@@ -476,14 +488,12 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     grouped[severity][agent].push(c);
   });
   
-  // Рендерим по severity
   ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
     const agents = grouped[severity];
     const agentNames = Object.keys(agents);
     
     if (agentNames.length === 0) return;
     
-    // Заголовок severity
     const severityHeader = document.createElement('h2');
     severityHeader.textContent = `${severity} (${agentNames.reduce((sum, a) => sum + agents[a].length, 0)})`;
     severityHeader.style.marginTop = '40px';
@@ -491,7 +501,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     severityHeader.style.color = severity === 'HIGH' ? '#c62828' : severity === 'MEDIUM' ? '#ef6c00' : '#2e7d32';
     container.appendChild(severityHeader);
     
-    // Агенты внутри severity
     agentNames.sort().forEach(agent => {
       const agentSection = document.createElement('div');
       agentSection.style.marginBottom = '24px';

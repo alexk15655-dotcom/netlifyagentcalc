@@ -22,16 +22,12 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
   const headers = Object.keys(data[0]);
   const cashierKey = headers[cashierColumn];
   
-  // Маппинг касса -> агент
   const cashierToAgent = buildCashierToAgentMapping(data, headers, cashierKey);
   
   console.log('[Fraud] Агентов найдено:', Object.keys(cashierToAgent).length);
-  console.log('[Fraud] Примеры маппинга:', Object.entries(cashierToAgent).slice(0, 5));
   
-  // Данные игроков
   const players = preparePlayersData(data, headers, cashierKey);
   
-  // Анализ 1: Высокие выводы
   players.forEach(player => {
     if (player.deposits < CONFIG.MIN_AMOUNT_FOR_ANALYSIS) return;
     
@@ -55,7 +51,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
     }
   });
   
-  // Группировка по кассам
   const cashiers = {};
   players.forEach(p => {
     if (!cashiers[p.cashierId]) {
@@ -72,7 +67,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
     cashiers[p.cashierId].players.push(p);
   });
   
-  // Анализ 2: Агент играет
   players.forEach(player => {
     const agentName = cashierToAgent[player.cashierId] || 
                      cashierToAgent[player.cashierName];
@@ -93,7 +87,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
     }
   });
   
-  // Анализ 3: Пустые аккаунты
   Object.values(cashiers).forEach(cashier => {
     const emptyAccounts = cashier.players.filter(p => !p.name || p.name.trim() === '');
     
@@ -114,7 +107,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
     }
   });
   
-  // Анализ 4: Мусорные имена
   Object.values(cashiers).forEach(cashier => {
     const trashAccounts = cashier.players.filter(p => p.name && isTrashName(p.name));
     
@@ -135,7 +127,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
     }
   });
   
-  // Анализ 5: Мультиаккаунты
   Object.values(cashiers).forEach(cashier => {
     detectMultiAccounts(cashier, cashier.players, CONFIG, fraudCases);
   });
@@ -144,21 +135,11 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
   return fraudCases;
 }
 
-/**
- * ИСПРАВЛЕНО: Извлечение кассы унифицировано с FG Summary
- */
 function buildCashierToAgentMapping(data, headers, cashierKey) {
   const mapping = {};
   
-  console.log('[Fraud] Начало построения маппинга. cashierKey:', cashierKey);
-  
-  let fgCount = 0;
-  let successCount = 0;
-  
-  data.forEach((row, idx) => {
+  data.forEach(row => {
     if (!row._isFG) return;
-    
-    fgCount++;
     
     const col0 = String(row[headers[0]] || '');
     const col1 = String(row[headers[1]] || '');
@@ -166,7 +147,6 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
     let agentName = null;
     let cashierInfo = null;
     
-    // Извлекаем имя ФГ и информацию о кассе
     if (col0.startsWith('ФГ:')) {
       agentName = col0.substring(3).trim();
       cashierInfo = col1;
@@ -175,50 +155,22 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
       cashierInfo = col0;
     }
     
-    if (!agentName || !cashierInfo) {
-      console.warn('[Fraud] Строка ФГ не распознана:', idx, col0, col1);
-      return;
-    }
+    if (!agentName || !cashierInfo) return;
     
-    // ИСПРАВЛЕНИЕ: Извлечение кассы как в FG Summary
-    // 1. Сначала пробуем колонку кассы
     let fullCashierName = String(row[cashierKey] || '').trim();
+    if (!fullCashierName) fullCashierName = cashierInfo;
     
-    // 2. Если пустая - используем cashierInfo
-    if (!fullCashierName) {
-      fullCashierName = cashierInfo;
-    }
-    
-    // 3. Извлекаем чистый ID в любом случае
     const cashierId = extractCashierId(fullCashierName || cashierInfo);
     
     if (cashierId) {
       mapping[cashierId] = agentName;
-      successCount++;
-      
-      // Дополнительные варианты для надежности
       mapping[fullCashierName] = agentName;
       mapping[cashierInfo] = agentName;
       
-      // Нормализованный вариант (без запятой после ID)
       const normalized = cashierInfo.replace(/^(\d+),\s*/, '$1 ');
       mapping[normalized] = agentName;
-      
-      if (idx < 3) {
-        console.log('[Fraud] Маппинг создан:', {
-          cashierId,
-          agentName,
-          fullCashierName,
-          cashierInfo
-        });
-      }
-    } else {
-      console.warn('[Fraud] Не удалось извлечь cashierId:', fullCashierName, cashierInfo);
     }
   });
-  
-  console.log('[Fraud] Маппинг построен:', successCount, 'из', fgCount, 'строк ФГ');
-  console.log('[Fraud] Всего ключей в маппинге:', Object.keys(mapping).length);
   
   return mapping;
 }

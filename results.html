@@ -22,34 +22,19 @@
     </header>
     
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="processed">
-        📊 Калькуляция
-      </button>
-      <button class="tab-btn" data-tab="fgSummary">
+      <button class="tab-btn active" data-tab="fgSummary">
         📈 Сводка ФГ
+      </button>
+      <button class="tab-btn" data-tab="processed">
+        📊 Калькуляция
       </button>
       <button class="tab-btn" data-tab="fraud">
         🚨 Фрод-анализ
       </button>
     </nav>
     
-    <!-- Калькуляция -->
-    <div id="processed" class="tab-content active">
-      <div class="content-header">
-        <h2>Обработанные данные</h2>
-        <div class="actions">
-          <button onclick="exportCSV('processed')" class="btn-export">
-            💾 Экспорт CSV
-          </button>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table id="processedTable" class="data-table"></table>
-      </div>
-    </div>
-    
-    <!-- Сводка ФГ -->
-    <div id="fgSummary" class="tab-content">
+    <!-- Сводка ФГ (теперь первый таб) -->
+    <div id="fgSummary" class="tab-content active">
       <div class="content-header">
         <h2>Сводка по финансовым группам</h2>
         <div class="actions">
@@ -61,6 +46,19 @@
       <div class="table-wrapper">
         <table id="fgSummaryTable" class="data-table"></table>
       </div>
+    </div>
+    
+    <!-- Калькуляция -->
+    <div id="processed" class="tab-content">
+      <div class="content-header">
+        <h2>Обработанные данные</h2>
+        <div class="actions">
+          <button onclick="exportCSV('processed')" class="btn-export">
+            💾 Экспорт CSV
+          </button>
+        </div>
+      </div>
+      <div id="processedTable"></div>
     </div>
     
     <!-- Фрод-анализ -->
