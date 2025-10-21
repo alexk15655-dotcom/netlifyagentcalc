@@ -17,6 +17,17 @@ function createFGSummary(groupedData, prepayData) {
   const headers = Object.keys(fgRows[0]);
   const cashierKey = fgRows[0]._cashierColumn;
   
+  // ИСПРАВЛЕНИЕ: Фильтруем prepayData от строк "Итого"
+  let cleanPrepayData = [];
+  if (prepayData && prepayData.length > 0) {
+    cleanPrepayData = prepayData.filter(row => {
+      const col0 = String(row[Object.keys(row)[0]] || '').trim();
+      const col1 = String(row[Object.keys(row)[1]] || '').trim();
+      return col1 !== 'Итого' && col1 !== 'Overall' && col0 !== 'Итого' && col0 !== 'Overall';
+    });
+    console.log('[FG Summary] Prepay строк после фильтрации:', cleanPrepayData.length);
+  }
+  
   // Группируем строки ФГ по имени ФГ
   const fgGroups = {};
   
@@ -37,7 +48,6 @@ function createFGSummary(groupedData, prepayData) {
     
     if (!fgName) return;
     
-    // Инициализируем группу если её нет
     if (!fgGroups[fgName]) {
       fgGroups[fgName] = {
         fgName: fgName,
@@ -56,14 +66,12 @@ function createFGSummary(groupedData, prepayData) {
     
     const group = fgGroups[fgName];
     
-    // Добавляем кассу
     const fullCashierName = String(fgRow[cashierKey] || cashierInfo).trim();
     group.cashiers.push(fullCashierName);
     
     const cashierId = extractCashierId(fullCashierName);
     group.cashierIds.push(cashierId);
     
-    // Суммируем данные
     const parseNum = (val) => parseFloat(String(val).replace(/[\s,]/g, '')) || 0;
     
     group.totalDeposits += parseNum(
@@ -85,7 +93,6 @@ function createFGSummary(groupedData, prepayData) {
     group.totalCommission += parseNum(fgRow['Комиссия'] || 0);
     group.totalProfit += parseNum(fgRow['Профит'] || 0);
     
-    // Средние депозиты/выводы
     const avgDep = parseNum(fgRow['Средний депозит'] || 0);
     const avgWith = parseNum(fgRow['Средний вывод'] || 0);
     
@@ -97,12 +104,16 @@ function createFGSummary(groupedData, prepayData) {
   const summary = [];
   
   Object.values(fgGroups).forEach(group => {
-    // Получаем prepayment
+    // ИСПРАВЛЕНИЕ: Ищем prepayment, показываем 0 если не найдено
     let prepaidAmount = 0;
-    if (prepayData && prepayData.length > 0) {
-      const prepayRow = prepayData.find(p => {
+    
+    if (cleanPrepayData.length > 0) {
+      const prepayRow = cleanPrepayData.find(p => {
         const prepayFG = String(p['Фин. группа'] || p['Финансовая группа'] || '').trim();
-        return prepayFG.includes(group.fgName) || group.fgName.includes(prepayFG);
+        // Точное совпадение или вхождение
+        return prepayFG.toLowerCase() === group.fgName.toLowerCase() ||
+               prepayFG.toLowerCase().includes(group.fgName.toLowerCase()) ||
+               group.fgName.toLowerCase().includes(prepayFG.toLowerCase());
       });
       
       if (prepayRow) {
@@ -110,13 +121,15 @@ function createFGSummary(groupedData, prepayData) {
           String(prepayRow['Сумма пополнений (в валюте админа)'] || 
                  prepayRow['Сумма пополнений'] || 0).replace(/[\s,]/g, '')
         ) || 0;
+        
+        console.log('[FG Summary] Найден prepay для', group.fgName, '=', prepaidAmount);
+      } else {
+        console.log('[FG Summary] Prepay НЕ найден для', group.fgName);
       }
     }
     
-    // Считаем количество игроков
     const playerCount = countPlayersForCashiers(groupedData, group.cashierIds, cashierKey);
     
-    // Рассчитываем метрики
     const depositToWithdrawalPercent = group.totalWithdrawals > 0 ?
       (group.totalDeposits / group.totalWithdrawals * 100) : 0;
     
@@ -129,7 +142,6 @@ function createFGSummary(groupedData, prepayData) {
     const avgWithdrawal = group.withdrawals.length > 0 ?
       group.withdrawals.reduce((a, b) => a + b, 0) / group.withdrawals.length : 0;
     
-    // Формируем строку экспорта
     const exportString = `${group.cashierIds[0] || ''},${round2(group.totalDeposits)},${round2(prepaidAmount)},${playerCount}`;
     
     summary.push({

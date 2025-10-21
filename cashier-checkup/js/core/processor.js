@@ -72,6 +72,7 @@ function processData(data, config) {
 
 /**
  * Группирует данные по кассам и сортирует по профиту
+ * ИСПРАВЛЕНО: ФГ теперь наверху, отсортированы по профиту
  */
 function groupData(data, cashierColumn) {
   const headers = Object.keys(data[0]);
@@ -80,6 +81,12 @@ function groupData(data, cashierColumn) {
   console.log('[Processor] Группировка по колонке', cashierColumn, '→', cashierKey);
   console.log('[Processor] Доступные заголовки:', headers);
   console.log('[Processor] Пример первой строки:', data[0]);
+  
+  // Валидация
+  if (!cashierKey) {
+    console.error('[Processor] КРИТИЧЕСКАЯ ОШИБКА: cashierKey не определен!');
+    throw new Error(`Колонка с индексом ${cashierColumn} не существует`);
+  }
   
   // Отделяем строки ФГ и обычные строки
   const fgRows = [];
@@ -130,9 +137,27 @@ function groupData(data, cashierColumn) {
     });
   });
   
-  // Собираем результат: игроки по кассам + ФГ + Итого
+  // ИСПРАВЛЕНИЕ: Собираем результат в порядке ФГ → кассы → Итого
   const result = [];
   
+  // 1. Финансовые группы НАВЕРХУ (сортированные по профиту)
+  if (fgRows.length > 0) {
+    fgRows.sort((a, b) => {
+      const profitA = parseFloat(a['Профит']) || 0;
+      const profitB = parseFloat(b['Профит']) || 0;
+      return profitA - profitB;  // от меньшего к большему
+    });
+    
+    result.push({
+      _separator: true,
+      _cashier: '═══ Финансовые группы ═══'
+    });
+    result.push(...fgRows);
+    
+    console.log('[Processor] ФГ добавлены наверх:', fgRows.length, 'строк');
+  }
+  
+  // 2. Кассы с игроками
   Object.keys(grouped).sort().forEach(cashier => {
     result.push({
       _separator: true,
@@ -141,20 +166,11 @@ function groupData(data, cashierColumn) {
     result.push(...grouped[cashier]);
   });
   
-  // Добавляем строки ФГ
-  if (fgRows.length > 0) {
-    result.push({
-      _separator: true,
-      _cashier: 'Финансовые группы'
-    });
-    result.push(...fgRows);
-  }
-  
-  // Добавляем Итого
+  // 3. Итого
   if (overallRow) {
     result.push({
       _separator: true,
-      _cashier: 'Итого'
+      _cashier: '═══ ИТОГО ═══'
     });
     result.push(overallRow);
   }
