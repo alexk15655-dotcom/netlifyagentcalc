@@ -78,29 +78,29 @@ function processData(data, config) {
 }
 
 /**
- * Строит маппинг касса → агент из строк ФГ
+ * ИСПРАВЛЕНО: Строит маппинг касса → агент из строк ФГ
+ * КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: убрана проверка на _isFG, т.к. флаг еще не установлен
  */
 function buildCashierToAgentMapping(data, headers, cashierKey) {
   const mapping = {};
   
   data.forEach(row => {
-    if (!row._isFG) return;
-    
     const col0 = String(row[headers[0]] || '').trim();
     const col1 = String(row[headers[1]] || '').trim();
     
-    // Извлечение имени агента (убираем префикс "ФГ:" если есть)
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем префикс "ФГ:" напрямую
     let agentName = null;
     let cashierInfo = null;
     
-if (col0.startsWith('ФГ:')) {
-  agentName = col0.substring(3).trim();
-  cashierInfo = col1;
-} else if (col1.startsWith('ФГ:')) {
-  agentName = col1.substring(3).trim();
-  cashierInfo = col0;
-}
+    if (col0.startsWith('ФГ:')) {
+      agentName = col0.substring(3).trim();
+      cashierInfo = col1;
+    } else if (col1.startsWith('ФГ:')) {
+      agentName = col1.substring(3).trim();
+      cashierInfo = col0;
+    }
     
+    // Если это не строка ФГ, пропускаем
     if (!agentName || !cashierInfo) return;
     
     // Получаем полное имя кассы из основной колонки
@@ -119,10 +119,11 @@ if (col0.startsWith('ФГ:')) {
       const normalized = cashierInfo.replace(/^(\d+),\s*/, '$1 ');
       mapping[normalized] = agentName;
       
-      console.log('[Processor] Маппинг:', cashierId, '→', agentName);
+      console.log('[Processor] Маппинг добавлен:', cashierId, '→', agentName);
     }
   });
   
+  console.log('[Processor] Всего записей в маппинге:', Object.keys(mapping).length);
   return mapping;
 }
 
