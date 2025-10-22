@@ -1,7 +1,8 @@
 'use strict';
 
-function createFGSummary(groupedData, prepayData) {
+function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
   console.log('[FG Summary] Создание сводки');
+  console.log('[FG Summary] Маппинг получен:', Object.keys(cashierToAgent).length, 'записей');
   
   if (!groupedData || groupedData.length === 0) {
     return null;

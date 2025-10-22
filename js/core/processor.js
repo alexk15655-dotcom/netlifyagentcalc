@@ -23,7 +23,7 @@ function processData(data, config) {
     throw new Error(`Колонка с индексом ${cashierColumn} не существует. Всего колонок: ${headers.length}`);
   }
   
-  return data.map((row, index) => {
+  const processed = data.map((row, index) => {
     // Парсим числовые значения
     const parseNum = (val) => {
       if (typeof val === 'number') return val;
@@ -68,6 +68,70 @@ function processData(data, config) {
       'Профит': round2(profit)
     };
   });
+  
+  // Строим единый маппинг кассы → агент
+  const cashierToAgent = buildCashierToAgentMapping(processed, headers, cashierKey);
+  
+  console.log('[Processor] Построен маппинг:', Object.keys(cashierToAgent).length, 'записей');
+  
+  return { processed, cashierToAgent };
+}
+
+/**
+ * Строит маппинг касса → агент из строк ФГ
+ */
+function buildCashierToAgentMapping(data, headers, cashierKey) {
+  const mapping = {};
+  
+  data.forEach(row => {
+    if (!row._isFG) return;
+    
+    const col0 = String(row[headers[0]] || '').trim();
+    const col1 = String(row[headers[1]] || '').trim();
+    
+    // Извлечение имени агента (убираем префикс "ФГ:" если есть)
+    let agentName = null;
+    let cashierInfo = null;
+    
+    if (col0) {
+      agentName = col0.replace(/^ФГ:\s*/, '').trim();
+      cashierInfo = col1;
+    } else if (col1) {
+      agentName = col1.replace(/^ФГ:\s*/, '').trim();
+      cashierInfo = col0;
+    }
+    
+    if (!agentName || !cashierInfo) return;
+    
+    // Получаем полное имя кассы из основной колонки
+    let fullCashierName = String(row[cashierKey] || '').trim();
+    if (!fullCashierName) fullCashierName = cashierInfo;
+    
+    const cashierId = extractCashierId(fullCashierName || cashierInfo);
+    
+    if (cashierId && agentName) {
+      // Создаем все варианты маппинга для надежности
+      mapping[cashierId] = agentName;
+      mapping[fullCashierName] = agentName;
+      mapping[cashierInfo] = agentName;
+      
+      // Нормализованный формат "12345 City" вместо "12345, City"
+      const normalized = cashierInfo.replace(/^(\d+),\s*/, '$1 ');
+      mapping[normalized] = agentName;
+      
+      console.log('[Processor] Маппинг:', cashierId, '→', agentName);
+    }
+  });
+  
+  return mapping;
+}
+
+/**
+ * Извлекает ID кассы из строки
+ */
+function extractCashierId(cashierStr) {
+  const match = String(cashierStr).match(/(\d+)[,\s]/);
+  return match ? match[1] : cashierStr;
 }
 
 /**
@@ -188,4 +252,6 @@ if (typeof self !== 'undefined' && self.importScripts) {
   self.processData = processData;
   self.groupData = groupData;
   self.round2 = round2;
+  self.extractCashierId = extractCashierId;
+  self.buildCashierToAgentMapping = buildCashierToAgentMapping;
 }

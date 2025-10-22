@@ -19,22 +19,32 @@ self.onmessage = function(e) {
     console.log('[Worker] Начало обработки:', mainData.length, 'строк');
     console.log('[Worker] Config:', config);
     
-    // 1. Обработка основных данных
-    const processed = processData(mainData, config);
+    // 1. Обработка основных данных + построение маппинга
+    const { processed, cashierToAgent } = processData(mainData, config);
     console.log('[Worker] ✓ Данные обработаны');
+    console.log('[Worker] ✓ Маппинг построен:', Object.keys(cashierToAgent).length, 'записей');
     
     // 2. Группировка
     const grouped = groupData(processed, config.cashierColumn);
     console.log('[Worker] ✓ Данные сгруппированы');
     
-    // 3. Анализ фрода
-    const fraudAnalysis = analyzeFraud(processed, config.cashierColumn, config.fraudConfig);
+    // 3. Анализ фрода (с готовым маппингом)
+    const fraudAnalysis = analyzeFraud(
+      processed, 
+      config.cashierColumn, 
+      config.fraudConfig,
+      cashierToAgent  // ← передаем готовый маппинг
+    );
     console.log('[Worker] ✓ Фрод-анализ выполнен');
     
-    // 4. Сводка по ФГ (если включено)
+    // 4. Сводка по ФГ (с готовым маппингом, если включено)
     let fgSummary = null;
     if (config.createSummary) {
-      fgSummary = createFGSummary(grouped, prepayData);
+      fgSummary = createFGSummary(
+        grouped, 
+        prepayData,
+        cashierToAgent  // ← передаем готовый маппинг
+      );
       console.log('[Worker] ✓ Сводка создана');
     }
     
