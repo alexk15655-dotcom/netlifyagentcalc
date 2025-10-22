@@ -25,6 +25,7 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}) {
   const cashierToAgent = buildCashierToAgentMapping(data, headers, cashierKey);
   
   console.log('[Fraud] Агентов найдено:', Object.keys(cashierToAgent).length);
+  console.log('[Fraud] Примеры маппинга:', Object.entries(cashierToAgent).slice(0, 5));
   
   const players = preparePlayersData(data, headers, cashierKey);
   
@@ -139,36 +140,46 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
   const mapping = {};
   
   data.forEach(row => {
+    // ИСПРАВЛЕНИЕ: используем флаг _isFG вместо проверки префикса "ФГ:"
     if (!row._isFG) return;
     
-    const col0 = String(row[headers[0]] || '');
-    const col1 = String(row[headers[1]] || '');
+    const col0 = String(row[headers[0]] || '').trim();
+    const col1 = String(row[headers[1]] || '').trim();
     
+    // Извлекаем имя агента (убираем префикс "ФГ:" если он есть)
     let agentName = null;
     let cashierInfo = null;
     
-    if (col0.startsWith('ФГ:')) {
-      agentName = col0.substring(3).trim();
+    // Пробуем извлечь из первой колонки
+    if (col0) {
+      agentName = col0.replace(/^ФГ:\s*/, '').trim();
       cashierInfo = col1;
-    } else if (col1.startsWith('ФГ:')) {
-      agentName = col1.substring(3).trim();
+    } 
+    // Если первая колонка пустая, пробуем вторую
+    else if (col1) {
+      agentName = col1.replace(/^ФГ:\s*/, '').trim();
       cashierInfo = col0;
     }
     
     if (!agentName || !cashierInfo) return;
     
+    // Получаем полное имя кассы из основной колонки
     let fullCashierName = String(row[cashierKey] || '').trim();
     if (!fullCashierName) fullCashierName = cashierInfo;
     
     const cashierId = extractCashierId(fullCashierName || cashierInfo);
     
     if (cashierId) {
+      // Создаем все варианты маппинга для надежности
       mapping[cashierId] = agentName;
       mapping[fullCashierName] = agentName;
       mapping[cashierInfo] = agentName;
       
+      // Нормализованный формат "12345 City" вместо "12345, City"
       const normalized = cashierInfo.replace(/^(\d+),\s*/, '$1 ');
       mapping[normalized] = agentName;
+      
+      console.log('[Fraud] Маппинг:', cashierId, '→', agentName);
     }
   });
   
