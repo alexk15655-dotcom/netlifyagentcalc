@@ -148,17 +148,17 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
     summary.push({
       'ФГ': group.fgName,
       'Кассы': group.cashiers.join(', '),
-      'Сумма пополнений ($)': round2(group.totalDeposits),
-      'Сумма предоплат ($)': round2(prepaidAmount),
-      'Количество игроков': playerCount,
-      'Сумма выводов ($)': round2(group.totalWithdrawals),
-      'Соотношение ввод/вывод (%)': round2(depositToWithdrawalPercent),
-      'Покрытие предоплатами (%)': round2(coveragePercent),
-      'Комиссия ($)': round2(group.totalCommission),
-      'Средний депозит ($)': round2(avgDeposit),
-      'Средний вывод ($)': round2(avgWithdrawal),
+      'Деп. $': round2(group.totalDeposits),
+      'Преп. $': round2(prepaidAmount),
+      'Игроки': playerCount,
+      'Выв. $': round2(group.totalWithdrawals),
       'Профит ($)': round2(group.totalProfit),
-      'Количество касс': group.cashiers.length,
+      'Ввод/вывод %': round2(depositToWithdrawalPercent),
+      'Деп/преп %': round2(coveragePercent),
+      'Комиссия $': round2(group.totalCommission),
+      'Ср. деп. $': round2(avgDeposit),
+      'Ср. выв.($)': round2(avgWithdrawal),
+      'Кол-во касс': group.cashiers.length,
       'Export': exportString
     });
   });

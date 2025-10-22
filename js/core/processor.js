@@ -93,13 +93,13 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
     let agentName = null;
     let cashierInfo = null;
     
-    if (col0) {
-      agentName = col0.replace(/^ФГ:\s*/, '').trim();
-      cashierInfo = col1;
-    } else if (col1) {
-      agentName = col1.replace(/^ФГ:\s*/, '').trim();
-      cashierInfo = col0;
-    }
+if (col0.startsWith('ФГ:')) {
+  agentName = col0.substring(3).trim();
+  cashierInfo = col1;
+} else if (col1.startsWith('ФГ:')) {
+  agentName = col1.substring(3).trim();
+  cashierInfo = col0;
+}
     
     if (!agentName || !cashierInfo) return;
     

@@ -1,78 +1,92 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f8f9fa;
+  color: #212529;
+  line-height: 1.5;
+}
+
 .results-container {
   max-width: 1400px;
-  margin: 20px auto;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-  overflow: hidden;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 .results-header {
-  padding: 30px 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: white;
+  padding: 20px 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .results-header h1 {
-  font-size: 28px;
-  color: white;
-  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #212529;
 }
 
 .btn-back {
-  padding: 10px 20px;
-  background: rgba(255,255,255,0.2);
-  color: white;
+  padding: 8px 16px;
+  background: #f1f3f5;
+  color: #495057;
   text-decoration: none;
   border-radius: 6px;
-  font-size: 14px;
   font-weight: 500;
   transition: background 0.2s;
 }
 
 .btn-back:hover {
-  background: rgba(255,255,255,0.3);
+  background: #e9ecef;
 }
 
-/* Tabs */
 .tabs {
   display: flex;
-  background: #f8f9ff;
-  border-bottom: 2px solid #ddd;
-  padding: 0 40px;
+  gap: 8px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
 }
 
 .tab-btn {
-  padding: 16px 24px;
-  background: none;
+  flex: 1;
+  padding: 12px 20px;
   border: none;
-  border-bottom: 3px solid transparent;
-  font-size: 15px;
+  background: transparent;
+  color: #6c757d;
   font-weight: 500;
-  color: #666;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  margin-bottom: -2px;
+  font-size: 14px;
 }
 
 .tab-btn:hover {
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.05);
+  background: #f8f9fa;
+  color: #495057;
 }
 
 .tab-btn.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
-  background: white;
+  background: #667eea;
+  color: white;
 }
 
-/* Content */
 .tab-content {
   display: none;
-  padding: 40px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 20px;
 }
 
 .tab-content.active {
@@ -83,245 +97,148 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e9ecef;
 }
 
 .content-header h2 {
-  font-size: 22px;
-  color: #333;
-  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #212529;
 }
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
 .btn-export {
-  padding: 10px 20px;
-  background: #4caf50;
+  padding: 8px 16px;
+  background: #667eea;
   color: white;
   border: none;
   border-radius: 6px;
-  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-export:hover {
-  background: #45a049;
+  background: #5568d3;
 }
 
-/* Tables */
+/* КРИТИЧЕСКОЕ: горизонтальный скролл без листания вниз */
 .table-wrapper {
   overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  overflow-y: visible;
+  max-height: none;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #adb5bd;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #868e96;
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
+  min-width: 800px; /* минимальная ширина для скролла */
 }
 
 .data-table thead {
-  background: #f5f5f5;
   position: sticky;
   top: 0;
   z-index: 10;
+  background: white;
 }
 
 .data-table th {
-  padding: 12px 16px;
-  text-align: left;
+  background: #f8f9fa;
+  color: #495057;
   font-weight: 600;
-  color: #555;
-  border-bottom: 2px solid #ddd;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid #dee2e6;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  position: sticky;
+  top: 0;
 }
 
 .data-table th:hover {
-  background: #eee;
+  background: #e9ecef;
 }
 
 .data-table td {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e9ecef;
+  white-space: nowrap;
 }
 
-.data-table tr:hover {
-  background: #fafafa;
+.data-table tbody tr:hover {
+  background: #f8f9fa;
 }
 
-.data-table tr.separator-row {
-  background: #e3f2fd;
-  font-weight: 600;
-  color: #1976d2;
-}
-
-.data-table tr.separator-row td {
-  padding: 8px 16px;
-  border-bottom: 2px solid #1976d2;
-}
-
-.data-table tr.fg-row {
-  background: #fff3e0;
-  font-weight: 600;
-}
-
-.data-table tr.overall-row {
-  background: #f5f5f5;
-  font-weight: 700;
-  border-top: 3px solid #333;
-}
-
-/* Number formatting */
-.num-positive {
-  color: #2e7d32;
-}
-
-.num-negative {
-  color: #c62828;
-}
-
-/* Fraud cases */
-.fraud-filters {
-  background: #f8f9ff;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.filter-section {
-  margin-bottom: 16px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.filter-label {
-  font-weight: 600;
-  color: #555;
-  margin-right: 8px;
-}
-
-.filter-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #666;
-  cursor: pointer;
-  user-select: none;
-}
-
-.filter-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.fraud-stats {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #ddd;
-  font-size: 13px;
-  color: #666;
+.fg-row {
+  background: #fff3cd !important;
   font-weight: 500;
 }
 
-.fraud-case {
-  padding: 16px;
-  border-left: 4px solid;
-  margin-bottom: 12px;
-  background: white;
-  border-radius: 0 6px 6px 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+.fg-row:hover {
+  background: #ffe69c !important;
 }
 
-.fraud-case.severity-high {
-  border-left-color: #c62828;
-  background: #ffebee;
-}
-
-.fraud-case.severity-medium {
-  border-left-color: #ef6c00;
-  background: #fff3e0;
-}
-
-.fraud-case.severity-low {
-  border-left-color: #2e7d32;
-  background: #e8f5e9;
-}
-
-.fraud-case-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.fraud-case-title {
-  font-size: 15px;
+.overall-row {
+  background: #d1ecf1 !important;
   font-weight: 600;
-  color: #333;
 }
 
-.severity-badge {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
+.overall-row:hover {
+  background: #bee5eb !important;
 }
 
-.severity-badge.high {
-  background: #c62828;
+.separator-row td {
+  background: #667eea;
   color: white;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px;
+  border: none;
 }
 
-.severity-badge.medium {
-  background: #ef6c00;
-  color: white;
+.num-positive {
+  color: #28a745;
+  font-weight: 500;
 }
 
-.severity-badge.low {
-  background: #2e7d32;
-  color: white;
+.num-negative {
+  color: #dc3545;
+  font-weight: 500;
 }
 
-.fraud-case-details {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.6;
-}
-
-.fraud-case-details strong {
-  color: #333;
-}
-
-/* Name check */
-.namecheck-item {
-  padding: 12px 16px;
-  background: #fff3e0;
-  border-left: 4px solid #ff9800;
-  margin-bottom: 8px;
-  border-radius: 0 4px 4px 0;
-}
-
-.namecheck-item strong {
-  color: #ef6c00;
-}
-
-/* Empty state */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #999;
+  color: #6c757d;
 }
 
 .empty-state-icon {
@@ -333,31 +250,152 @@
   font-size: 16px;
 }
 
-/* Responsive */
+/* Фильтры фрода */
+.fraud-filters {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.filter-row label {
+  font-weight: 500;
+  min-width: 120px;
+  font-size: 13px;
+}
+
+.filter-row input[type="text"],
+.filter-row select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.fraud-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  border-radius: 6px;
+  border-left: 4px solid #667eea;
+}
+
+.stat-card .label {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.stat-card .value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #212529;
+  margin-top: 4px;
+}
+
+.fraud-case {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.fraud-case-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.fraud-case-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.severity-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-badge.critical {
+  background: #dc3545;
+  color: white;
+}
+
+.severity-badge.high {
+  background: #fd7e14;
+  color: white;
+}
+
+.severity-badge.medium {
+  background: #ffc107;
+  color: #212529;
+}
+
+.severity-badge.low {
+  background: #28a745;
+  color: white;
+}
+
+.fraud-case-details {
+  font-size: 13px;
+  color: #495057;
+  line-height: 1.6;
+}
+
+.fraud-case-details strong {
+  color: #212529;
+}
+
+/* Мобильная адаптация */
 @media (max-width: 768px) {
+  .results-container {
+    padding: 12px;
+  }
+  
   .results-header {
     flex-direction: column;
-    gap: 16px;
-    text-align: center;
+    gap: 12px;
   }
   
   .tabs {
-    flex-wrap: wrap;
-    padding: 0 20px;
-  }
-  
-  .tab-btn {
-    flex: 1;
-    min-width: 120px;
-  }
-  
-  .tab-content {
-    padding: 20px;
+    flex-direction: column;
   }
   
   .content-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  
+  .data-table {
+    font-size: 12px;
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 8px;
   }
 }
