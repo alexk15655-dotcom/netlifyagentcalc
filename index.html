@@ -91,8 +91,23 @@
         
         <div class="config-grid">
           <div class="config-item">
-            <label for="highWithdrawalRatio">Высокие выводы (%)</label>
-            <input type="number" id="highWithdrawalRatio" value="110" step="1" min="100" max="500">
+            <label for="minWithdrawalDiff">Высокие выводы: мин. разница ($)</label>
+            <input type="number" id="minWithdrawalDiff" value="100" step="10" min="0">
+          </div>
+          
+          <div class="config-item">
+            <label for="mediumRatio">Высокие выводы: MEDIUM порог (%)</label>
+            <input type="number" id="mediumRatio" value="110" step="1" min="100" max="500">
+          </div>
+          
+          <div class="config-item">
+            <label for="highRatio">Высокие выводы: HIGH порог (%)</label>
+            <input type="number" id="highRatio" value="200" step="1" min="100" max="1000">
+          </div>
+          
+          <div class="config-item">
+            <label for="highDiff">Высокие выводы: HIGH разница ($)</label>
+            <input type="number" id="highDiff" value="1000" step="50" min="0">
           </div>
           
           <div class="config-item">

@@ -9,7 +9,10 @@ const appState = {
     withCommission: 2,
     createSummary: true,
     fraudConfig: {
-      HIGH_WITHDRAWAL_RATIO: 1.1,
+      MIN_WITHDRAWAL_DIFF: 100,
+      MEDIUM_RATIO: 1.1,
+      HIGH_RATIO: 2.0,
+      HIGH_DIFF: 1000,
       MIN_AMOUNT_FOR_ANALYSIS: 100,
       EMPTY_ACCOUNT_THRESHOLD: 10,
       NAME_SIMILARITY_THRESHOLD: 0.7,
@@ -94,9 +97,21 @@ function initConfigInputs() {
     appState.config.createSummary = e.target.checked;
   });
   
-  // Расширенные настройки
-  document.getElementById('highWithdrawalRatio').addEventListener('input', (e) => {
-    appState.config.fraudConfig.HIGH_WITHDRAWAL_RATIO = parseFloat(e.target.value) / 100;
+  // Расширенные настройки - новые параметры
+  document.getElementById('minWithdrawalDiff').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MIN_WITHDRAWAL_DIFF = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('mediumRatio').addEventListener('input', (e) => {
+    appState.config.fraudConfig.MEDIUM_RATIO = parseFloat(e.target.value) / 100;
+  });
+  
+  document.getElementById('highRatio').addEventListener('input', (e) => {
+    appState.config.fraudConfig.HIGH_RATIO = parseFloat(e.target.value) / 100;
+  });
+  
+  document.getElementById('highDiff').addEventListener('input', (e) => {
+    appState.config.fraudConfig.HIGH_DIFF = parseFloat(e.target.value);
   });
   
   document.getElementById('minAmountAnalysis').addEventListener('input', (e) => {

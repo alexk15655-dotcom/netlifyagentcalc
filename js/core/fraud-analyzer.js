@@ -6,7 +6,10 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
   console.log('[Fraud Analyzer] Маппинг получен:', Object.keys(cashierToAgent).length, 'записей');
   
   const CONFIG = {
-    HIGH_WITHDRAWAL_RATIO: fraudConfig.HIGH_WITHDRAWAL_RATIO || 1.1,
+    MIN_WITHDRAWAL_DIFF: fraudConfig.MIN_WITHDRAWAL_DIFF || 100,
+    MEDIUM_RATIO: fraudConfig.MEDIUM_RATIO || 1.1,
+    HIGH_RATIO: fraudConfig.HIGH_RATIO || 2.0,
+    HIGH_DIFF: fraudConfig.HIGH_DIFF || 1000,
     MIN_AMOUNT_FOR_ANALYSIS: fraudConfig.MIN_AMOUNT_FOR_ANALYSIS || 100,
     EMPTY_ACCOUNT_THRESHOLD: fraudConfig.EMPTY_ACCOUNT_THRESHOLD || 10,
     NAME_SIMILARITY_THRESHOLD: fraudConfig.NAME_SIMILARITY_THRESHOLD || 0.7,
@@ -23,18 +26,46 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
   const headers = Object.keys(data[0]);
   const cashierKey = headers[cashierColumn];
   
-  // Используем готовый маппинг вместо построения нового
   console.log('[Fraud] Примеры маппинга:', Object.entries(cashierToAgent).slice(0, 5));
   
   const players = preparePlayersData(data, headers, cashierKey);
   
+  // НОВАЯ ЛОГИКА HIGH_WITHDRAWALS
   players.forEach(player => {
-    if (player.deposits < CONFIG.MIN_AMOUNT_FOR_ANALYSIS) return;
+    const diff = player.withdrawals - player.deposits;
     
-    const ratio = player.deposits > 0 ? player.withdrawals / player.deposits : 0;
+    // Пропускаем если разница меньше MIN_WITHDRAWAL_DIFF
+    if (diff <= CONFIG.MIN_WITHDRAWAL_DIFF) return;
     
-    if (ratio > CONFIG.HIGH_WITHDRAWAL_RATIO) {
-      const severity = player.deposits > 1000 && ratio > 1.5 ? 'HIGH' : 'MEDIUM';
+    let severity = null;
+    let details = '';
+    
+    if (player.deposits === 0) {
+      // Случай с нулевым депозитом
+      if (player.withdrawals >= CONFIG.HIGH_DIFF) {
+        severity = 'HIGH';
+      } else {
+        severity = 'MEDIUM';
+      }
+      details = `Вывод $${Math.round(player.withdrawals)} без депозита`;
+    } else {
+      // Случай с ненулевым депозитом
+      const ratio = player.withdrawals / player.deposits;
+      
+      if (ratio >= CONFIG.HIGH_RATIO || diff >= CONFIG.HIGH_DIFF) {
+        severity = 'HIGH';
+      } else if (ratio >= CONFIG.MEDIUM_RATIO) {
+        severity = 'MEDIUM';
+      } else {
+        return; // Пропускаем
+      }
+      
+      const ratioPercent = Math.round(ratio * 100);
+      details = `Выводов ко вводам: ${ratioPercent}%. Депозит: $${Math.round(player.deposits)}, Вывод: $${Math.round(player.withdrawals)}`;
+    }
+    
+    // Если severity определен, добавляем в fraudCases
+    if (severity) {
       const agentName = cashierToAgent[player.cashierId] || 
                        cashierToAgent[player.cashierName] ||
                        'Неизвестный агент';
@@ -45,7 +76,7 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
         playerId: player.id,
         playerName: player.name,
         cashiers: [player.cashierName],
-        details: `Выводов ко вводам: ${Math.round(ratio * 100)}%. Депозит: $${Math.round(player.deposits)}, Вывод: $${Math.round(player.withdrawals)}`,
+        details,
         agentName
       });
     }
