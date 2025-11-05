@@ -20,7 +20,8 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
-      data = formatFraudForExport(results.fraudAnalysis);
+      // Экспортируем только отфильтрованные случаи
+      data = formatFraudForExport(window.filteredFraudCases || results.fraudAnalysis);
       filename = 'fraud_analysis';
       break;
     default:

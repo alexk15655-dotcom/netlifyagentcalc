@@ -1,365 +1,128 @@
 'use strict';
 
-let cashierCheckupResults = null;
+let currentTab = 'fgSummary';
 
 document.addEventListener('DOMContentLoaded', () => {
+  initTabs();
   loadResults();
 });
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('CashierCheckupDB', 1);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('results')) {
-        db.createObjectStore('results');
-      }
-    };
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      switchTab(tab);
+    });
   });
 }
 
-function getResults() {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['results'], 'readonly');
-      const store = transaction.objectStore('results');
-      const request = store.get('lastProcessing');
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
+function switchTab(tab) {
+  currentTab = tab;
+  
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.toggle('active', content.id === tab);
   });
 }
 
 function loadResults() {
-  getResults()
-    .then(results => {
-      if (!results) {
-        alert('Нет данных. Вернитесь на главную страницу.');
-        window.location.href = 'index.html';
-        return;
-      }
-      
-      cashierCheckupResults = results;
-      window.cashierCheckupResults = results;
-      
-      console.log('[Results] Загружены результаты:', results);
-      
-      initTabs();
-      renderAllTabs();
-    })
-    .catch(error => {
-      alert('Ошибка загрузки результатов: ' + error.message);
-      window.location.href = 'index.html';
-    });
-}
-
-function initTabs() {
-  const tabBtns = document.querySelectorAll('.tab-btn');
+  const results = localStorage.getItem('cashierCheckupResults');
   
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tabId = btn.dataset.tab;
-      switchTab(tabId);
-    });
-  });
-}
-
-function switchTab(tabId) {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.remove('active');
-  });
-  document.querySelectorAll('.tab-content').forEach(content => {
-    content.classList.remove('active');
-  });
-  
-  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-  document.getElementById(tabId).classList.add('active');
-}
-
-function renderAllTabs() {
-  const results = cashierCheckupResults;
-  
-  // 1. Сводка ФГ (теперь первый таб)
-  if (results.fgSummary && results.fgSummary.length > 0) {
-    renderTable(results.fgSummary, 'fgSummaryTable');
-  } else {
-    document.getElementById('fgSummaryTable').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <div class="empty-state-text">Сводка не создана или нет данных ФГ</div>
-      </div>
-    `;
+  if (!results) {
+    window.location.href = 'index.html';
+    return;
   }
   
-  // 2. Калькуляция - виртуализация для больших данных
-  if (results.grouped && results.grouped.length > 0) {
-    renderGroupedTableVirtualized(results.grouped, 'processedTable');
-  }
-  
-  // 3. Фрод-анализ
-  window.allFraudCases = results.fraudAnalysis || [];
+  const data = JSON.parse(results);
+  window.cashierCheckupResults = data;
+  window.allFraudCases = data.fraudAnalysis || [];
   window.filteredFraudCases = [...window.allFraudCases];
-  applyFraudFilters();
-}
-
-// Виртуализированная таблица для больших данных
-function renderGroupedTableVirtualized(data, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
   
-  container.innerHTML = '';
-  
-  if (!data || data.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <div class="empty-state-text">Нет данных для отображения</div>
-      </div>
-    `;
-    return;
-  }
-  
-  const CHUNK_SIZE = 100;
-  let currentChunk = 0;
-  
-  const headerMap = {
-    'Номер игрока': 'ID',
-    'Игрок': 'Имя',
-    'Сумма пополнений': 'Деп.',
-    'Сумма вывода': 'Выв.',
-    'Сумма пополнений (в валюте админа по курсу текущего дня)': 'Деп. USD',
-    'Сумма вывода (в валюте админа по курсу текущего дня)': 'Выв. USD',
-    'Количество пополнений': '№ Деп.',
-    'Количество выводов': '№ Выв.',
-    'Касса': 'Касса',
-    'Комиссия': 'Ком.',
-    'Средний депозит': 'Ср. Деп.',
-    'Средний вывод': 'Ср. Выв.',
-    'Профит': 'Профит'
-  };
-  
-  const displayHeaders = [
-    'Номер игрока', 'Игрок', 'Сумма пополнений', 'Сумма вывода',
-    'Сумма пополнений (в валюте админа по курсу текущего дня)',
-    'Сумма вывода (в валюте админа по курсу текущего дня)',
-    'Количество пополнений', 'Количество выводов', 'Касса',
-    'Комиссия', 'Средний депозит', 'Средний вывод', 'Профит'
-  ];
-  
-  const wrapper = document.createElement('div');
-  wrapper.className = 'virtualized-table-wrapper';
-  wrapper.style.overflowY = 'auto';
-  wrapper.style.maxHeight = 'calc(100vh - 300px)';
-  
-  const table = document.createElement('table');
-  table.className = 'data-table';
-  
-  const thead = table.createTHead();
-  const headerRow = thead.insertRow();
-  
-  displayHeaders.forEach((header, index) => {
-    const th = document.createElement('th');
-    th.textContent = headerMap[header] || header;
-    th.title = header;
-    th.onclick = () => sortTable(table, index);
-    headerRow.appendChild(th);
+  console.log('[Results] Загружено:', {
+    processed: data.processed?.length,
+    grouped: data.grouped?.length,
+    fraud: data.fraudAnalysis?.length,
+    fgSummary: data.fgSummary?.length
   });
   
-  const tbody = table.createTBody();
-  tbody.id = 'virtualizedBody';
-  
-  const fgRows = data.filter(row => row._isFG);
-  const playerRows = data.filter(row => !row._isFG && !row._isOverall && !row._separator);
-  const overallRow = data.find(row => row._isOverall);
-  
-  function renderChunk(chunk) {
-    const start = chunk * CHUNK_SIZE;
-    const end = Math.min(start + CHUNK_SIZE, playerRows.length);
-    const rows = playerRows.slice(start, end);
-    
-    const grouped = {};
-    const cashierKey = playerRows[0]?._cashierColumn || 'Касса';
-    
-    rows.forEach(row => {
-      const cashier = String(row[cashierKey] || 'Неизвестно').trim();
-      if (!grouped[cashier]) grouped[cashier] = [];
-      grouped[cashier].push(row);
-    });
-    
-    Object.keys(grouped).sort().forEach(cashier => {
-      const separatorRow = tbody.insertRow();
-      separatorRow.className = 'separator-row';
-      const td = separatorRow.insertCell();
-      td.colSpan = displayHeaders.length;
-      td.textContent = `─── ${cashier} ───`;
-      
-      grouped[cashier].forEach(row => {
-        const tr = tbody.insertRow();
-        
-        displayHeaders.forEach(header => {
-          const td = tr.insertCell();
-          const value = row[header];
-          
-          if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-            const num = parseFloat(value);
-            td.textContent = formatNumber(num);
-            
-            if (header === 'Профит') {
-              td.className = num >= 0 ? 'num-positive' : 'num-negative';
-            }
-          } else {
-            td.textContent = value || '';
-          }
-        });
-      });
-    });
+  if (data.fgSummary && data.fgSummary.length > 0) {
+    renderTable(data.fgSummary, 'fgSummaryTable');
   }
   
-  // ФГ
-  if (fgRows.length > 0) {
-    const separatorRow = tbody.insertRow();
-    separatorRow.className = 'separator-row';
-    const td = separatorRow.insertCell();
-    td.colSpan = displayHeaders.length;
-    td.textContent = '═══ Финансовые группы ═══';
-    
-    fgRows.forEach(row => {
-      const tr = tbody.insertRow();
-      tr.className = 'fg-row';
-      
-      displayHeaders.forEach(header => {
-        const td = tr.insertCell();
-        const value = row[header];
-        
-        if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-          const num = parseFloat(value);
-          td.textContent = formatNumber(num);
-          
-          if (header === 'Профит') {
-            td.className = num >= 0 ? 'num-positive' : 'num-negative';
-          }
-        } else {
-          td.textContent = value || '';
-        }
-      });
-    });
+  if (data.grouped && data.grouped.length > 0) {
+    renderTable(data.grouped, 'processedTable');
   }
   
-  renderChunk(0);
-  
-  // Ленивая загрузка
-  wrapper.onscroll = () => {
-    if (wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 100) {
-      currentChunk++;
-      if (currentChunk * CHUNK_SIZE < playerRows.length) {
-        renderChunk(currentChunk);
-      }
-    }
-  };
-  
-  // Итого
-  if (overallRow) {
-    const separatorRow = tbody.insertRow();
-    separatorRow.className = 'separator-row';
-    const td = separatorRow.insertCell();
-    td.colSpan = displayHeaders.length;
-    td.textContent = '═══ ИТОГО ═══';
-    
-    const tr = tbody.insertRow();
-    tr.className = 'overall-row';
-    
-    displayHeaders.forEach(header => {
-      const td = tr.insertCell();
-      const value = overallRow[header];
-      
-      if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-        const num = parseFloat(value);
-        td.textContent = formatNumber(num);
-        
-        if (header === 'Профит') {
-          td.className = num >= 0 ? 'num-positive' : 'num-negative';
-        }
-      } else {
-        td.textContent = value || '';
-      }
-    });
+  if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
+    applyFraudFilters();
   }
-  
-  wrapper.appendChild(table);
-  container.appendChild(wrapper);
 }
 
-function renderTable(data, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
+function renderTable(data, tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
   
-  container.innerHTML = '';
+  table.innerHTML = '';
   
-  if (!data || data.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <div class="empty-state-text">Нет данных для отображения</div>
-      </div>
-    `;
-    return;
-  }
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
   
-  const table = document.createElement('table');
-  table.className = 'data-table';
-  
-  const headers = Object.keys(data[0]).filter(h => !h.startsWith('_'));
-  const thead = table.createTHead();
-  const headerRow = thead.insertRow();
-  
+  const headers = Object.keys(data[0]).filter(key => !key.startsWith('_'));
   headers.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
-    th.onclick = () => sortTable(table, index);
-    th.title = 'Кликните для сортировки';
+    th.dataset.column = index;
+    th.addEventListener('click', () => sortTable(table, index));
     headerRow.appendChild(th);
   });
   
-  const tbody = table.createTBody();
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
   
+  const tbody = document.createElement('tbody');
   data.forEach(row => {
-    const tr = tbody.insertRow();
+    const tr = document.createElement('tr');
     
-    headers.forEach(header => {
-      const td = tr.insertCell();
-      let value = row[header];
+    if (row._separator) {
+      tr.classList.add('separator-row');
+      const td = document.createElement('td');
+      td.colSpan = headers.length;
+      td.textContent = row[headers[0]] || '';
+      tr.appendChild(td);
+    } else {
+      if (row._isFG) tr.classList.add('fg-row');
+      if (row._isOverall) tr.classList.add('overall-row');
       
-      if (header === 'Кассы' || header === 'Export') {
-        td.textContent = value || '';
-        td.style.whiteSpace = 'pre-wrap';
-      }
-      else if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-        const num = parseFloat(value);
-        td.textContent = formatNumber(num);
+      headers.forEach(header => {
+        const td = document.createElement('td');
+        const value = row[header];
         
-        if (header.includes('Профит') || header.includes('Прибыль')) {
-          td.className = num >= 0 ? 'num-positive' : 'num-negative';
+        if (typeof value === 'number') {
+          td.textContent = formatNumber(value);
+          td.className = value >= 0 ? 'num-positive' : 'num-negative';
+        } else {
+          td.textContent = value || '';
         }
-      } else {
-        td.textContent = value || '';
-      }
-    });
+        
+        tr.appendChild(td);
+      });
+    }
+    
+    tbody.appendChild(tr);
   });
   
-  container.appendChild(table);
+  table.appendChild(tbody);
 }
 
 function sortTable(table, columnIndex) {
-  const tbody = table.tBodies[0];
-  const rows = Array.from(tbody.rows);
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
   
-  const currentDir = table.dataset.sortDir || 'asc';
-  const newDir = currentDir === 'asc' ? 'desc' : 'asc';
+  const currentDir = table.dataset.sortDir || 'desc';
+  const newDir = currentDir === 'desc' ? 'asc' : 'desc';
   table.dataset.sortDir = newDir;
   
   rows.sort((a, b) => {
@@ -403,10 +166,12 @@ function applyFraudFilters() {
   
   const filterTypes = {
     'HIGH_WITHDRAWALS': document.getElementById('filterHighWithdrawals')?.checked ?? true,
+    'HIGH_BALANCED_FLOW': document.getElementById('filterHighBalancedFlow')?.checked ?? true,
     'AGENT_SELF_PLAY': document.getElementById('filterAgentSelfPlay')?.checked ?? true,
     'EMPTY_ACCOUNTS': document.getElementById('filterEmptyAccounts')?.checked ?? true,
-    'TRASH_ACCOUNTS': document.getElementById('filterTrashAccounts')?.checked ?? true,
-    'MULTI_ACCOUNTS': document.getElementById('filterMultiAccounts')?.checked ?? true
+    'TRASH_ACCOUNTS': document.getElementById('filterTrashAccounts')?.checked ?? false,
+    'MULTI_ACCOUNTS': document.getElementById('filterMultiAccounts')?.checked ?? true,
+    'AGENT_TAKEOVER': document.getElementById('filterAgentTakeover')?.checked ?? true
   };
   
   const filtered = allCases.filter(c => {
@@ -553,10 +318,12 @@ function createFraudCaseElement(fraudCase) {
 function getTypeTitle(type) {
   const titles = {
     'HIGH_WITHDRAWALS': 'Высокие выводы',
+    'HIGH_BALANCED_FLOW': 'Крупные близкие вводы-выводы',
     'AGENT_SELF_PLAY': 'Агент играет',
     'EMPTY_ACCOUNTS': 'Пустые аккаунты',
     'TRASH_ACCOUNTS': 'Мусорные имена',
-    'MULTI_ACCOUNTS': 'Мультиаккаунты'
+    'MULTI_ACCOUNTS': 'Мультиаккаунты',
+    'AGENT_TAKEOVER': 'Концентрация выводов'
   };
   return titles[type] || type;
 }

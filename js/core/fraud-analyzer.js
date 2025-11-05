@@ -19,7 +19,18 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
     MULTI_ACCOUNT_MEDIUM_COUNT: fraudConfig.MULTI_ACCOUNT_MEDIUM_COUNT || 5,
     MULTI_ACCOUNT_HIGH_LOSS: fraudConfig.MULTI_ACCOUNT_HIGH_LOSS || 500,
     MULTI_ACCOUNT_HIGH_COUNT: fraudConfig.MULTI_ACCOUNT_HIGH_COUNT || 10,
-    NAME_SIMILARITY_MULTI: fraudConfig.NAME_SIMILARITY_MULTI || 0.8
+    NAME_SIMILARITY_MULTI: fraudConfig.NAME_SIMILARITY_MULTI || 0.8,
+    // НОВЫЕ параметры для HIGH_BALANCED_FLOW
+    HIGH_BALANCED_FLOW_DETECTION_THRESHOLD: fraudConfig.HIGH_BALANCED_FLOW_DETECTION_THRESHOLD || 1000,
+    HIGH_BALANCED_FLOW_HIGH_THRESHOLD: fraudConfig.HIGH_BALANCED_FLOW_HIGH_THRESHOLD || 5000,
+    HIGH_BALANCED_FLOW_LOWER_RATIO: fraudConfig.HIGH_BALANCED_FLOW_LOWER_RATIO || 0.90,
+    // НОВЫЙ параметр для AGENT_TAKEOVER
+    AGENT_TAKEOVER_MIN_DEPOSITS: fraudConfig.AGENT_TAKEOVER_MIN_DEPOSITS || 1000,
+    AGENT_TAKEOVER_MAX_PLAYERS: fraudConfig.AGENT_TAKEOVER_MAX_PLAYERS || 10,
+    AGENT_TAKEOVER_CONCENTRATION: fraudConfig.AGENT_TAKEOVER_CONCENTRATION || 0.80,
+    AGENT_TAKEOVER_MAX_GROUP_SIZE: fraudConfig.AGENT_TAKEOVER_MAX_GROUP_SIZE || 3,
+    AGENT_TAKEOVER_MEDIUM_THRESHOLD: fraudConfig.AGENT_TAKEOVER_MEDIUM_THRESHOLD || 200,
+    AGENT_TAKEOVER_HIGH_THRESHOLD: fraudConfig.AGENT_TAKEOVER_HIGH_THRESHOLD || 500
   };
   
   const fraudCases = [];
@@ -30,18 +41,16 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
   
   const players = preparePlayersData(data, headers, cashierKey);
   
-  // НОВАЯ ЛОГИКА HIGH_WITHDRAWALS
+  // Анализ HIGH_WITHDRAWALS
   players.forEach(player => {
     const diff = player.withdrawals - player.deposits;
     
-    // Пропускаем если разница меньше MIN_WITHDRAWAL_DIFF
     if (diff <= CONFIG.MIN_WITHDRAWAL_DIFF) return;
     
     let severity = null;
     let details = '';
     
     if (player.deposits === 0) {
-      // Случай с нулевым депозитом
       if (player.withdrawals >= CONFIG.HIGH_DIFF) {
         severity = 'HIGH';
       } else {
@@ -49,7 +58,6 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
       }
       details = `Вывод $${Math.round(player.withdrawals)} без депозита`;
     } else {
-      // Случай с ненулевым депозитом
       const ratio = player.withdrawals / player.deposits;
       
       if (ratio >= CONFIG.HIGH_RATIO || diff >= CONFIG.HIGH_DIFF) {
@@ -57,14 +65,13 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
       } else if (ratio >= CONFIG.MEDIUM_RATIO) {
         severity = 'MEDIUM';
       } else {
-        return; // Пропускаем
+        return;
       }
       
       const ratioPercent = Math.round(ratio * 100);
       details = `Выводов ко вводам: ${ratioPercent}%. Депозит: $${Math.round(player.deposits)}, Вывод: $${Math.round(player.withdrawals)}`;
     }
     
-    // Если severity определен, добавляем в fraudCases
     if (severity) {
       const agentName = cashierToAgent[player.cashierId] || 
                        cashierToAgent[player.cashierName] ||
@@ -72,6 +79,42 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
       
       fraudCases.push({
         type: 'HIGH_WITHDRAWALS',
+        severity,
+        playerId: player.id,
+        playerName: player.name,
+        cashiers: [player.cashierName],
+        details,
+        agentName
+      });
+    }
+  });
+  
+  // НОВЫЙ КРИТЕРИЙ: HIGH_BALANCED_FLOW
+  players.forEach(player => {
+    if (player.deposits < CONFIG.HIGH_BALANCED_FLOW_DETECTION_THRESHOLD) return;
+    if (player.deposits === 0) return;
+    
+    const ratio = player.withdrawals / player.deposits;
+    
+    // Проверяем диапазон: от 90% до верхнего порога HIGH_WITHDRAWALS
+    if (ratio >= CONFIG.HIGH_BALANCED_FLOW_LOWER_RATIO && ratio < CONFIG.MEDIUM_RATIO) {
+      let severity = 'MEDIUM';
+      if (player.deposits >= CONFIG.HIGH_BALANCED_FLOW_HIGH_THRESHOLD) {
+        severity = 'HIGH';
+      }
+      
+      const ratioPercent = Math.round(ratio * 100);
+      const totalFlow = player.deposits + player.withdrawals;
+      const estimatedCommission = Math.round(totalFlow * 0.05); // 5% комиссии
+      
+      const details = `Выводы ко вводам: ${ratioPercent}%. Депозит: $${Math.round(player.deposits)}, Вывод: $${Math.round(player.withdrawals)}. Оборот через кассу: $${Math.round(totalFlow)}. Комиссия агенту: ~$${estimatedCommission}. Возможная накрутка оборота.`;
+      
+      const agentName = cashierToAgent[player.cashierId] || 
+                       cashierToAgent[player.cashierName] ||
+                       'Неизвестный агент';
+      
+      fraudCases.push({
+        type: 'HIGH_BALANCED_FLOW',
         severity,
         playerId: player.id,
         playerName: player.name,
@@ -92,12 +135,19 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
         id: p.cashierId,
         name: p.cashierName,
         players: [],
-        agentName: agentName
+        agentName: agentName,
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        profit: 0
       };
     }
     cashiers[p.cashierId].players.push(p);
+    cashiers[p.cashierId].totalDeposits += p.deposits;
+    cashiers[p.cashierId].totalWithdrawals += p.withdrawals;
+    cashiers[p.cashierId].profit += (p.deposits - p.withdrawals);
   });
   
+  // Анализ AGENT_SELF_PLAY
   players.forEach(player => {
     const agentName = cashierToAgent[player.cashierId] || 
                      cashierToAgent[player.cashierName];
@@ -118,6 +168,7 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
     }
   });
   
+  // Анализ EMPTY_ACCOUNTS
   Object.values(cashiers).forEach(cashier => {
     const emptyAccounts = cashier.players.filter(p => !p.name || p.name.trim() === '');
     
@@ -138,6 +189,7 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
     }
   });
   
+  // Анализ TRASH_ACCOUNTS
   Object.values(cashiers).forEach(cashier => {
     const trashAccounts = cashier.players.filter(p => p.name && isTrashName(p.name));
     
@@ -158,8 +210,53 @@ function analyzeFraud(data, cashierColumn, fraudConfig = {}, cashierToAgent = {}
     }
   });
   
+  // Анализ MULTI_ACCOUNTS
   Object.values(cashiers).forEach(cashier => {
     detectMultiAccounts(cashier, cashier.players, CONFIG, fraudCases);
+  });
+  
+  // НОВЫЙ КРИТЕРИЙ: AGENT_TAKEOVER
+  Object.values(cashiers).forEach(cashier => {
+    // Условия: касса убыточная, мало игроков, большие депозиты
+    if (cashier.profit >= 0) return;
+    if (cashier.players.length > CONFIG.AGENT_TAKEOVER_MAX_PLAYERS) return;
+    if (cashier.totalDeposits < CONFIG.AGENT_TAKEOVER_MIN_DEPOSITS) return;
+    
+    // Сортируем игроков по выводам (от большего к меньшему)
+    const sortedPlayers = [...cashier.players].sort((a, b) => b.withdrawals - a.withdrawals);
+    
+    // Проверяем группы из 1-3 игроков
+    for (let groupSize = 1; groupSize <= Math.min(CONFIG.AGENT_TAKEOVER_MAX_GROUP_SIZE, sortedPlayers.length); groupSize++) {
+      const group = sortedPlayers.slice(0, groupSize);
+      const groupWithdrawals = group.reduce((sum, p) => sum + p.withdrawals, 0);
+      const concentration = groupWithdrawals / cashier.totalWithdrawals;
+      
+      if (concentration >= CONFIG.AGENT_TAKEOVER_CONCENTRATION) {
+        let severity = 'LOW';
+        if (groupWithdrawals >= CONFIG.AGENT_TAKEOVER_HIGH_THRESHOLD) {
+          severity = 'HIGH';
+        } else if (groupWithdrawals >= CONFIG.AGENT_TAKEOVER_MEDIUM_THRESHOLD) {
+          severity = 'MEDIUM';
+        }
+        
+        const playersList = group.map(p => `${p.id} (${p.name || 'без имени'})`).join(', ');
+        const concentrationPercent = Math.round(concentration * 100);
+        
+        const details = `Касса в минусе: -$${Math.abs(Math.round(cashier.profit))}. Игроков: ${cashier.players.length}, депозиты: $${Math.round(cashier.totalDeposits)}. Игроки ${playersList} вывели $${Math.round(groupWithdrawals)} (${concentrationPercent}% от всех выводов кассы).`;
+        
+        fraudCases.push({
+          type: 'AGENT_TAKEOVER',
+          severity,
+          playerId: group[0].id,
+          playerName: group[0].name,
+          cashiers: [cashier.name],
+          details,
+          agentName: cashier.agentName
+        });
+        
+        break; // Один случай на кассу достаточно
+      }
+    }
   });
   
   console.log('[Fraud Analyzer] Найдено случаев:', fraudCases.length);

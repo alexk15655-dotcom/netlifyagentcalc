@@ -97,6 +97,10 @@
             Высокие выводы
           </label>
           <label class="filter-checkbox">
+            <input type="checkbox" id="filterHighBalancedFlow" checked onchange="applyFraudFilters()">
+            Крупные близкие вводы-выводы
+          </label>
+          <label class="filter-checkbox">
             <input type="checkbox" id="filterAgentSelfPlay" checked onchange="applyFraudFilters()">
             Агент играет
           </label>
@@ -105,12 +109,16 @@
             Пустые
           </label>
           <label class="filter-checkbox">
-            <input type="checkbox" id="filterTrashAccounts" checked onchange="applyFraudFilters()">
+            <input type="checkbox" id="filterTrashAccounts" onchange="applyFraudFilters()">
             Мусорные
           </label>
           <label class="filter-checkbox">
             <input type="checkbox" id="filterMultiAccounts" checked onchange="applyFraudFilters()">
             Мультиаккаунты
+          </label>
+          <label class="filter-checkbox">
+            <input type="checkbox" id="filterAgentTakeover" checked onchange="applyFraudFilters()">
+            Концентрация выводов
           </label>
         </div>
         
