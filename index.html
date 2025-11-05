@@ -90,82 +90,225 @@
         <h3>Критерии фрод-анализа</h3>
         
         <div class="config-grid">
+          <!-- Высокие выводы -->
+          <h4 style="grid-column: 1 / -1; margin-top: 12px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            💸 Высокие выводы
+          </h4>
+          
           <div class="config-item">
-            <label for="minWithdrawalDiff">Высокие выводы: мин. разница ($)</label>
+            <label for="minWithdrawalDiff">
+              Мин. разница ($)
+              <span class="hint">— минимальная разница вывод-депозит</span>
+            </label>
             <input type="number" id="minWithdrawalDiff" value="100" step="10" min="0">
           </div>
           
           <div class="config-item">
-            <label for="mediumRatio">Высокие выводы: MEDIUM порог (%)</label>
+            <label for="mediumRatio">
+              MEDIUM порог (%)
+              <span class="hint">— соотношение вывод/депозит</span>
+            </label>
             <input type="number" id="mediumRatio" value="110" step="1" min="100" max="500">
           </div>
           
           <div class="config-item">
-            <label for="highRatio">Высокие выводы: HIGH порог (%)</label>
+            <label for="highRatio">
+              HIGH порог (%)
+              <span class="hint">— соотношение вывод/депозит</span>
+            </label>
             <input type="number" id="highRatio" value="200" step="1" min="100" max="1000">
           </div>
           
           <div class="config-item">
-            <label for="highDiff">Высокие выводы: HIGH разница ($)</label>
+            <label for="highDiff">
+              HIGH разница ($)
+              <span class="hint">— абсолютная разница для HIGH</span>
+            </label>
             <input type="number" id="highDiff" value="1000" step="50" min="0">
           </div>
           
           <div class="config-item">
-            <label for="minAmountAnalysis">Мин. сумма анализа ($)</label>
+            <label for="minAmountAnalysis">
+              Мин. сумма анализа ($)
+              <span class="hint">— минимум для проверки</span>
+            </label>
             <input type="number" id="minAmountAnalysis" value="100" step="10" min="0">
           </div>
           
+          <!-- Крупные близкие вводы-выводы (НОВОЕ) -->
+          <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            💰 Крупные близкие вводы-выводы
+          </h4>
+          
           <div class="config-item">
-            <label for="emptyAccountThreshold">Порог пустых аккаунтов</label>
-            <input type="number" id="emptyAccountThreshold" value="10" step="1" min="1">
+            <label for="balancedFlowDetectionThreshold">
+              Мин. депозит для обнаружения ($)
+              <span class="hint">— минимальный депозит для анализа</span>
+            </label>
+            <input type="number" id="balancedFlowDetectionThreshold" value="1000" step="100" min="100">
           </div>
           
           <div class="config-item">
-            <label for="nameSimilarityThreshold">Похожесть имен агент/игрок (%)</label>
+            <label for="balancedFlowHighThreshold">
+              Порог HIGH severity ($)
+              <span class="hint">— депозит для HIGH severity</span>
+            </label>
+            <input type="number" id="balancedFlowHighThreshold" value="5000" step="500" min="1000">
+          </div>
+          
+          <div class="config-item">
+            <label for="balancedFlowLowerRatio">
+              Нижний порог соотношения (%)
+              <span class="hint">— нижняя граница вывод/депозит</span>
+            </label>
+            <input type="number" id="balancedFlowLowerRatio" value="90" step="1" min="50" max="100">
+          </div>
+          
+          <!-- Агент играет сам -->
+          <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            👤 Агент играет сам
+          </h4>
+          
+          <div class="config-item">
+            <label for="nameSimilarityThreshold">
+              Похожесть имен агент/игрок (%)
+              <span class="hint">— порог схожести имен</span>
+            </label>
             <input type="number" id="nameSimilarityThreshold" value="70" step="1" min="50" max="100">
           </div>
           
+          <!-- Пустые аккаунты -->
+          <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            📭 Пустые аккаунты
+          </h4>
+          
           <div class="config-item">
-            <label for="multiAccountThreshold">Мультиаккаунты: мин. кол-во</label>
+            <label for="emptyAccountThreshold">
+              Порог пустых аккаунтов
+              <span class="hint">— минимальное количество</span>
+            </label>
+            <input type="number" id="emptyAccountThreshold" value="10" step="1" min="1">
+          </div>
+          
+          <!-- Мультиаккаунты -->
+          <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            👥 Мультиаккаунты
+          </h4>
+          
+          <div class="config-item">
+            <label for="multiAccountThreshold">
+              Мин. кол-во
+              <span class="hint">— минимум акков в группе</span>
+            </label>
             <input type="number" id="multiAccountThreshold" value="3" step="1" min="2">
           </div>
           
           <div class="config-item">
-            <label for="multiAccountLowLoss">Мультиаккаунты: LOW порог ($)</label>
+            <label for="multiAccountLowLoss">
+              LOW порог ($)
+              <span class="hint">— убыток для LOW</span>
+            </label>
             <input type="number" id="multiAccountLowLoss" value="75" step="1" min="0">
           </div>
           
           <div class="config-item">
-            <label for="multiAccountMediumLoss">Мультиаккаунты: MEDIUM порог ($)</label>
+            <label for="multiAccountMediumLoss">
+              MEDIUM порог ($)
+              <span class="hint">— убыток для MEDIUM</span>
+            </label>
             <input type="number" id="multiAccountMediumLoss" value="150" step="1" min="0">
           </div>
           
           <div class="config-item">
-            <label for="multiAccountMediumCount">Мультиаккаунты: MEDIUM кол-во</label>
+            <label for="multiAccountMediumCount">
+              MEDIUM кол-во
+              <span class="hint">— количество для MEDIUM</span>
+            </label>
             <input type="number" id="multiAccountMediumCount" value="5" step="1" min="2">
           </div>
           
           <div class="config-item">
-            <label for="multiAccountHighLoss">Мультиаккаунты: HIGH порог ($)</label>
+            <label for="multiAccountHighLoss">
+              HIGH порог ($)
+              <span class="hint">— убыток для HIGH</span>
+            </label>
             <input type="number" id="multiAccountHighLoss" value="500" step="1" min="0">
           </div>
           
           <div class="config-item">
-            <label for="multiAccountHighCount">Мультиаккаунты: HIGH кол-во</label>
+            <label for="multiAccountHighCount">
+              HIGH кол-во
+              <span class="hint">— количество для HIGH</span>
+            </label>
             <input type="number" id="multiAccountHighCount" value="10" step="1" min="2">
           </div>
           
           <div class="config-item">
-            <label for="nameSimilarityMulti">Похожесть для мультиаккаунтов (%)</label>
+            <label for="nameSimilarityMulti">
+              Похожесть для мультиаккаунтов (%)
+              <span class="hint">— порог схожести имен</span>
+            </label>
             <input type="number" id="nameSimilarityMulti" value="80" step="1" min="50" max="100">
+          </div>
+          
+          <!-- Концентрация выводов (НОВОЕ) -->
+          <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
+            🎯 Концентрация выводов
+          </h4>
+          
+          <div class="config-item">
+            <label for="takeoverMinDeposits">
+              Мин. депозиты на кассе ($)
+              <span class="hint">— минимальная сумма депозитов</span>
+            </label>
+            <input type="number" id="takeoverMinDeposits" value="1000" step="100" min="100">
+          </div>
+          
+          <div class="config-item">
+            <label for="takeoverMaxPlayers">
+              Макс. игроков на кассе
+              <span class="hint">— максимальное количество игроков</span>
+            </label>
+            <input type="number" id="takeoverMaxPlayers" value="10" step="1" min="1" max="50">
+          </div>
+          
+          <div class="config-item">
+            <label for="takeoverConcentration">
+              Порог концентрации (%)
+              <span class="hint">— доля выводов группы от общих</span>
+            </label>
+            <input type="number" id="takeoverConcentration" value="80" step="1" min="50" max="100">
+          </div>
+          
+          <div class="config-item">
+            <label for="takeoverMaxGroupSize">
+              Макс. размер группы
+              <span class="hint">— сколько игроков проверять (1-3)</span>
+            </label>
+            <input type="number" id="takeoverMaxGroupSize" value="3" step="1" min="1" max="5">
+          </div>
+          
+          <div class="config-item">
+            <label for="takeoverMediumThreshold">
+              Порог MEDIUM severity ($)
+              <span class="hint">— сумма выводов группы</span>
+            </label>
+            <input type="number" id="takeoverMediumThreshold" value="200" step="50" min="50">
+          </div>
+          
+          <div class="config-item">
+            <label for="takeoverHighThreshold">
+              Порог HIGH severity ($)
+              <span class="hint">— сумма выводов группы</span>
+            </label>
+            <input type="number" id="takeoverHighThreshold" value="500" step="50" min="100">
           </div>
         </div>
       </div>
     </section>
     
     <button id="processBtn" class="btn-primary" disabled>
-      <span class="btn-text">Обработать</span>
-      <span class="btn-loader" style="display:none;">⏳ Обработка...</span>
+      🔄 Обработать
     </button>
     
     <div id="status" class="status"></div>
@@ -174,7 +317,7 @@
   <footer>
     <a href="privacy-policy.html">Политика приватности</a>
     <span>•</span>
-    <span>Версия 1.2</span>
+    <span>Версия 3.1</span>
   </footer>
   
   <script src="lib/papaparse.min.js"></script>

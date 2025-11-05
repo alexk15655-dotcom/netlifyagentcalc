@@ -22,7 +22,18 @@ const appState = {
       MULTI_ACCOUNT_MEDIUM_COUNT: 5,
       MULTI_ACCOUNT_HIGH_LOSS: 500,
       MULTI_ACCOUNT_HIGH_COUNT: 10,
-      NAME_SIMILARITY_MULTI: 0.8
+      NAME_SIMILARITY_MULTI: 0.8,
+      // НОВЫЕ параметры для HIGH_BALANCED_FLOW
+      HIGH_BALANCED_FLOW_DETECTION_THRESHOLD: 1000,
+      HIGH_BALANCED_FLOW_HIGH_THRESHOLD: 5000,
+      HIGH_BALANCED_FLOW_LOWER_RATIO: 0.90,
+      // НОВЫЕ параметры для AGENT_TAKEOVER
+      AGENT_TAKEOVER_MIN_DEPOSITS: 1000,
+      AGENT_TAKEOVER_MAX_PLAYERS: 10,
+      AGENT_TAKEOVER_CONCENTRATION: 0.80,
+      AGENT_TAKEOVER_MAX_GROUP_SIZE: 3,
+      AGENT_TAKEOVER_MEDIUM_THRESHOLD: 200,
+      AGENT_TAKEOVER_HIGH_THRESHOLD: 500
     }
   }
 };
@@ -97,7 +108,7 @@ function initConfigInputs() {
     appState.config.createSummary = e.target.checked;
   });
   
-  // Расширенные настройки - новые параметры
+  // Расширенные настройки - существующие параметры
   document.getElementById('minWithdrawalDiff').addEventListener('input', (e) => {
     appState.config.fraudConfig.MIN_WITHDRAWAL_DIFF = parseFloat(e.target.value);
   });
@@ -153,6 +164,44 @@ function initConfigInputs() {
   document.getElementById('nameSimilarityMulti').addEventListener('input', (e) => {
     appState.config.fraudConfig.NAME_SIMILARITY_MULTI = parseFloat(e.target.value) / 100;
   });
+  
+  // НОВЫЕ параметры HIGH_BALANCED_FLOW
+  document.getElementById('balancedFlowDetectionThreshold').addEventListener('input', (e) => {
+    appState.config.fraudConfig.HIGH_BALANCED_FLOW_DETECTION_THRESHOLD = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('balancedFlowHighThreshold').addEventListener('input', (e) => {
+    appState.config.fraudConfig.HIGH_BALANCED_FLOW_HIGH_THRESHOLD = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('balancedFlowLowerRatio').addEventListener('input', (e) => {
+    appState.config.fraudConfig.HIGH_BALANCED_FLOW_LOWER_RATIO = parseFloat(e.target.value) / 100;
+  });
+  
+  // НОВЫЕ параметры AGENT_TAKEOVER
+  document.getElementById('takeoverMinDeposits').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_MIN_DEPOSITS = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('takeoverMaxPlayers').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_MAX_PLAYERS = parseInt(e.target.value);
+  });
+  
+  document.getElementById('takeoverConcentration').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_CONCENTRATION = parseFloat(e.target.value) / 100;
+  });
+  
+  document.getElementById('takeoverMaxGroupSize').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_MAX_GROUP_SIZE = parseInt(e.target.value);
+  });
+  
+  document.getElementById('takeoverMediumThreshold').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_MEDIUM_THRESHOLD = parseFloat(e.target.value);
+  });
+  
+  document.getElementById('takeoverHighThreshold').addEventListener('input', (e) => {
+    appState.config.fraudConfig.AGENT_TAKEOVER_HIGH_THRESHOLD = parseFloat(e.target.value);
+  });
 }
 
 function initProcessButton() {
@@ -181,70 +230,61 @@ function openDB() {
   });
 }
 
-function saveResults(results) {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['results'], 'readwrite');
-      const store = transaction.objectStore('results');
-      const request = store.put(results, 'lastProcessing');
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  });
-}
-
-function processData() {
-  const btn = document.getElementById('processBtn');
-  const btnText = btn.querySelector('.btn-text');
-  const btnLoader = btn.querySelector('.btn-loader');
+async function processData() {
+  if (!appState.mainData) {
+    alert('Загрузите основной файл');
+    return;
+  }
   
+  const btn = document.getElementById('processBtn');
   btn.disabled = true;
-  btnText.style.display = 'none';
-  btnLoader.style.display = 'inline';
+  btn.textContent = 'Обработка...';
   updateStatus('Обработка данных...', 'info');
   
-  const worker = new Worker('js/workers/main.worker.js');
-  
-  worker.postMessage({
-    mainData: appState.mainData,
-    prepayData: appState.prepayData,
-    config: appState.config
-  });
-  
-  worker.onmessage = (e) => {
-    const results = e.data;
+  try {
+    const worker = new Worker('js/workers/main.worker.js');
     
-    if (results.error) {
-      updateStatus(`✗ Ошибка: ${results.error}`, 'error');
-      btn.disabled = false;
-      btnText.style.display = 'inline';
-      btnLoader.style.display = 'none';
-      return;
-    }
-    
-    // Сохраняем в IndexedDB вместо sessionStorage
-    saveResults(results)
-      .then(() => {
-        window.location.href = 'results.html';
-      })
-      .catch(error => {
-        updateStatus(`✗ Ошибка сохранения: ${error.message}`, 'error');
-        btn.disabled = false;
-        btnText.style.display = 'inline';
-        btnLoader.style.display = 'none';
+    worker.onmessage = async (e) => {
+      const result = e.data;
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      console.log('[App] Результаты получены:', {
+        processed: result.processed?.length,
+        grouped: result.grouped?.length,
+        fraud: result.fraudAnalysis?.length,
+        fgSummary: result.fgSummary?.length
       });
+      
+      localStorage.setItem('cashierCheckupResults', JSON.stringify(result));
+      
+      updateStatus('✓ Обработка завершена!', 'success');
+      
+      setTimeout(() => {
+        window.location.href = 'results.html';
+      }, 500);
+      
+      worker.terminate();
+    };
     
-    worker.terminate();
-  };
-  
-  worker.onerror = (error) => {
-    updateStatus(`✗ Ошибка обработки: ${error.message}`, 'error');
+    worker.onerror = (error) => {
+      throw error;
+    };
+    
+    worker.postMessage({
+      mainData: appState.mainData,
+      prepayData: appState.prepayData,
+      config: appState.config
+    });
+    
+  } catch (error) {
+    console.error('[App] Ошибка:', error);
+    updateStatus(`✗ Ошибка: ${error.message}`, 'error');
     btn.disabled = false;
-    btnText.style.display = 'inline';
-    btnLoader.style.display = 'none';
-    worker.terminate();
-  };
+    btn.textContent = '🔄 Обработать';
+  }
 }
 
 function updateStatus(message, type) {
