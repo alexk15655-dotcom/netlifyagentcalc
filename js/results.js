@@ -28,15 +28,90 @@ function switchTab(tab) {
   });
 }
 
-function loadResults() {
-  const results = localStorage.getItem('cashierCheckupResults');
+async function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('CashierCheckupDB', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('results')) {
+        db.createObjectStore('results');
+      }
+    };
+  });
+}
+
+async function loadFromIndexedDB() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction('results', 'readonly');
+    const store = tx.objectStore('results');
+    
+    const fgSummary = await new Promise((resolve, reject) => {
+      const req = store.get('fgSummary');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    const grouped = await new Promise((resolve, reject) => {
+      const req = store.get('grouped');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    const fraudAnalysis = await new Promise((resolve, reject) => {
+      const req = store.get('fraudAnalysis');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    const config = await new Promise((resolve, reject) => {
+      const req = store.get('config');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    const timestamp = await new Promise((resolve, reject) => {
+      const req = store.get('timestamp');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    
+    return {
+      fgSummary,
+      grouped,
+      fraudAnalysis,
+      config,
+      timestamp
+    };
+  } catch (error) {
+    console.error('[Results] Ошибка загрузки из IndexedDB:', error);
+    return null;
+  }
+}
+
+async function loadResults() {
+  let data = await loadFromIndexedDB();
   
-  if (!results) {
+  if (!data || !data.fgSummary) {
+    const localStorageData = localStorage.getItem('cashierCheckupResults');
+    if (localStorageData) {
+      try {
+        data = JSON.parse(localStorageData);
+      } catch (e) {
+        console.error('[Results] Ошибка парсинга localStorage:', e);
+      }
+    }
+  }
+  
+  if (!data || !data.fgSummary) {
     window.location.href = 'index.html';
     return;
   }
   
-  const data = JSON.parse(results);
   window.cashierCheckupResults = data;
   window.allFraudCases = data.fraudAnalysis || [];
   window.filteredFraudCases = [...window.allFraudCases];
@@ -225,6 +300,7 @@ function renderFraudFlat(cases, containerId) {
   });
 }
 
+// ПУНКТ 3: Группировка по severity → agent → cashier
 function renderFraudGroupedBySeverity(cases, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -241,6 +317,7 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     return;
   }
   
+  // Шаг 1: Группировка по severity → agent → cashier
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   cases.forEach(c => {
@@ -248,43 +325,87 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     const agent = c.agentName || 'Неизвестный агент';
     
     if (!grouped[severity][agent]) {
-      grouped[severity][agent] = [];
+      grouped[severity][agent] = {};
     }
-    grouped[severity][agent].push(c);
+    
+    // Группируем по кассе
+    c.cashiers.forEach(cashierName => {
+      const cashierId = extractCashierIdFromName(cashierName);
+      
+      if (!grouped[severity][agent][cashierId]) {
+        grouped[severity][agent][cashierId] = {
+          name: cashierName,
+          cases: []
+        };
+      }
+      
+      // Добавляем случай только один раз (даже если у него несколько касс)
+      if (!grouped[severity][agent][cashierId].cases.includes(c)) {
+        grouped[severity][agent][cashierId].cases.push(c);
+      }
+    });
   });
   
+  // Шаг 2: Рендеринг HTML
   ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
     const agents = grouped[severity];
     const agentNames = Object.keys(agents);
     
     if (agentNames.length === 0) return;
     
+    // Заголовок severity
     const severityHeader = document.createElement('h2');
-    severityHeader.textContent = `${severity} (${agentNames.reduce((sum, a) => sum + agents[a].length, 0)})`;
+    const totalCases = agentNames.reduce((sum, agent) => {
+      return sum + Object.values(agents[agent]).reduce((s, c) => s + c.cases.length, 0);
+    }, 0);
+    severityHeader.textContent = `${severity} (${totalCases})`;
     severityHeader.style.marginTop = '40px';
     severityHeader.style.marginBottom = '20px';
     severityHeader.style.color = severity === 'HIGH' ? '#c62828' : severity === 'MEDIUM' ? '#ef6c00' : '#2e7d32';
     container.appendChild(severityHeader);
     
+    // Для каждого агента
     agentNames.sort().forEach(agent => {
-      const agentSection = document.createElement('div');
-      agentSection.style.marginBottom = '24px';
+      const cashiers = agents[agent];
+      const agentTotalCases = Object.values(cashiers).reduce((sum, c) => sum + c.cases.length, 0);
       
+      // Заголовок агента
       const agentHeader = document.createElement('h3');
-      agentHeader.textContent = `${agent} (${agents[agent].length})`;
+      agentHeader.textContent = `${agent} (${agentTotalCases})`;
       agentHeader.style.marginBottom = '12px';
       agentHeader.style.color = '#667eea';
       agentHeader.style.fontSize = '18px';
-      agentSection.appendChild(agentHeader);
+      container.appendChild(agentHeader);
       
-      agents[agent].forEach(fraudCase => {
-        const div = createFraudCaseElement(fraudCase);
-        agentSection.appendChild(div);
+      // Для каждой кассы агента
+      Object.keys(cashiers).sort().forEach(cashierId => {
+        const cashierData = cashiers[cashierId];
+        
+        // Заголовок кассы
+        const cashierHeader = document.createElement('h4');
+        cashierHeader.className = 'cashier-header';
+        cashierHeader.textContent = `Касса ${cashierId} (${cashierData.cases.length})`;
+        container.appendChild(cashierHeader);
+        
+        // Случаи кассы
+        cashierData.cases.forEach(fraudCase => {
+          const div = createFraudCaseElement(fraudCase);
+          div.classList.add('nested');
+          container.appendChild(div);
+        });
       });
       
-      container.appendChild(agentSection);
+      // Разделитель между агентами
+      const separator = document.createElement('div');
+      separator.className = 'agent-separator';
+      container.appendChild(separator);
     });
   });
+}
+
+function extractCashierIdFromName(cashierName) {
+  const match = String(cashierName).match(/^(\d+)[,\s]/);
+  return match ? match[1] : cashierName;
 }
 
 function createFraudCaseElement(fraudCase) {

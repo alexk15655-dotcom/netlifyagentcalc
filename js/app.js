@@ -8,6 +8,7 @@ const appState = {
     depCommission: 5,
     withCommission: 2,
     createSummary: true,
+    findSimilarNames: false,
     fraudConfig: {
       MIN_WITHDRAWAL_DIFF: 100,
       MEDIUM_RATIO: 1.1,
@@ -23,11 +24,9 @@ const appState = {
       MULTI_ACCOUNT_HIGH_LOSS: 500,
       MULTI_ACCOUNT_HIGH_COUNT: 10,
       NAME_SIMILARITY_MULTI: 0.8,
-      // НОВЫЕ параметры для HIGH_BALANCED_FLOW
       HIGH_BALANCED_FLOW_DETECTION_THRESHOLD: 1000,
       HIGH_BALANCED_FLOW_HIGH_THRESHOLD: 5000,
       HIGH_BALANCED_FLOW_LOWER_RATIO: 0.90,
-      // НОВЫЕ параметры для AGENT_TAKEOVER
       AGENT_TAKEOVER_MIN_DEPOSITS: 1000,
       AGENT_TAKEOVER_MAX_PLAYERS: 10,
       AGENT_TAKEOVER_CONCENTRATION: 0.80,
@@ -51,11 +50,185 @@ function toggleAdvanced() {
   }
 }
 
+// ПУНКТ 7: Функция toggle для accordion секций
+function toggleSection(sectionId) {
+  const content = document.getElementById(`section-${sectionId}`);
+  const toggle = document.getElementById(`toggle-${sectionId}`);
+  
+  if (!content || !toggle) return;
+  
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    toggle.textContent = '▼';
+    localStorage.setItem(`section-${sectionId}`, 'open');
+  } else {
+    content.classList.add('collapsed');
+    toggle.textContent = '▶';
+    localStorage.setItem(`section-${sectionId}`, 'closed');
+  }
+}
+
+// ПУНКТ 7: Валидация настроек
+function validateFraudSettings() {
+  let isValid = true;
+  
+  clearAllValidationErrors();
+  
+  const balancedFlowLower = parseFloat(document.getElementById('balancedFlowLowerRatio').value);
+  const mediumRatio = parseFloat(document.getElementById('mediumRatio').value);
+  
+  if (balancedFlowLower >= mediumRatio) {
+    showValidationError('balancedFlowLowerRatio', 
+      'Нижний порог должен быть меньше MEDIUM порога Высоких выводов');
+    isValid = false;
+  }
+  
+  const mediumLoss = parseFloat(document.getElementById('multiAccountMediumLoss').value);
+  const highLoss = parseFloat(document.getElementById('multiAccountHighLoss').value);
+  
+  if (mediumLoss >= highLoss) {
+    showValidationError('multiAccountMediumLoss', 
+      'MEDIUM порог должен быть меньше HIGH порога');
+    isValid = false;
+  }
+  
+  const mediumCount = parseInt(document.getElementById('multiAccountMediumCount').value);
+  const highCount = parseInt(document.getElementById('multiAccountHighCount').value);
+  const threshold = parseInt(document.getElementById('multiAccountThreshold').value);
+  
+  if (mediumCount < threshold) {
+    showValidationError('multiAccountMediumCount', 
+      'MEDIUM кол-во должно быть >= минимального порога');
+    isValid = false;
+  }
+  
+  if (highCount < mediumCount) {
+    showValidationError('multiAccountHighCount', 
+      'HIGH кол-во должно быть >= MEDIUM кол-ва');
+    isValid = false;
+  }
+  
+  const balancedDetection = parseFloat(document.getElementById('balancedFlowDetectionThreshold').value);
+  const balancedHigh = parseFloat(document.getElementById('balancedFlowHighThreshold').value);
+  
+  if (balancedHigh < balancedDetection) {
+    showValidationError('balancedFlowHighThreshold', 
+      'HIGH порог должен быть >= минимального депозита');
+    isValid = false;
+  }
+  
+  const takeoverMedium = parseFloat(document.getElementById('takeoverMediumThreshold').value);
+  const takeoverHigh = parseFloat(document.getElementById('takeoverHighThreshold').value);
+  
+  if (takeoverHigh < takeoverMedium) {
+    showValidationError('takeoverHighThreshold', 
+      'HIGH порог должен быть >= MEDIUM порога');
+    isValid = false;
+  }
+  
+  return isValid;
+}
+
+function showValidationError(fieldId, message) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  
+  const item = field.closest('.config-item');
+  if (!item) return;
+  
+  item.classList.add('invalid');
+  
+  let errorDiv = item.querySelector('.validation-error');
+  if (!errorDiv) {
+    errorDiv = document.createElement('div');
+    errorDiv.className = 'validation-error';
+    item.appendChild(errorDiv);
+  }
+  errorDiv.textContent = message;
+}
+
+function clearValidationError(fieldId) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  
+  const item = field.closest('.config-item');
+  if (!item) return;
+  
+  item.classList.remove('invalid');
+  const errorDiv = item.querySelector('.validation-error');
+  if (errorDiv) {
+    errorDiv.textContent = '';
+  }
+}
+
+function clearAllValidationErrors() {
+  document.querySelectorAll('.config-item.invalid').forEach(item => {
+    item.classList.remove('invalid');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initFileInputs();
   initConfigInputs();
   initProcessButton();
+  restoreAccordionState();
+  initValidation();
 });
+
+// ПУНКТ 7: Восстановление состояния accordion
+function restoreAccordionState() {
+  const sections = [
+    'highWithdrawals', 
+    'balancedFlow', 
+    'agentSelfPlay', 
+    'emptyAccounts', 
+    'multiAccounts', 
+    'agentTakeover'
+  ];
+  
+  sections.forEach(sectionId => {
+    const state = localStorage.getItem(`section-${sectionId}`);
+    const content = document.getElementById(`section-${sectionId}`);
+    const toggle = document.getElementById(`toggle-${sectionId}`);
+    
+    if (!content || !toggle) return;
+    
+    if (state === 'closed') {
+      content.classList.add('collapsed');
+      toggle.textContent = '▶';
+    } else {
+      content.classList.remove('collapsed');
+      toggle.textContent = '▼';
+    }
+  });
+}
+
+// ПУНКТ 7: Инициализация валидации
+function initValidation() {
+  const fieldsToValidate = [
+    'balancedFlowLowerRatio',
+    'mediumRatio',
+    'multiAccountMediumLoss',
+    'multiAccountHighLoss',
+    'multiAccountMediumCount',
+    'multiAccountHighCount',
+    'multiAccountThreshold',
+    'balancedFlowDetectionThreshold',
+    'balancedFlowHighThreshold',
+    'takeoverMediumThreshold',
+    'takeoverHighThreshold'
+  ];
+  
+  fieldsToValidate.forEach(fieldId => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.addEventListener('input', () => {
+        clearValidationError(fieldId);
+        setTimeout(validateFraudSettings, 300);
+      });
+    }
+  });
+}
 
 function initFileInputs() {
   const mainFile = document.getElementById('mainFile');
@@ -108,7 +281,10 @@ function initConfigInputs() {
     appState.config.createSummary = e.target.checked;
   });
   
-  // Расширенные настройки - существующие параметры
+  document.getElementById('findSimilarNames').addEventListener('change', (e) => {
+    appState.config.findSimilarNames = e.target.checked;
+  });
+  
   document.getElementById('minWithdrawalDiff').addEventListener('input', (e) => {
     appState.config.fraudConfig.MIN_WITHDRAWAL_DIFF = parseFloat(e.target.value);
   });
@@ -165,7 +341,6 @@ function initConfigInputs() {
     appState.config.fraudConfig.NAME_SIMILARITY_MULTI = parseFloat(e.target.value) / 100;
   });
   
-  // НОВЫЕ параметры HIGH_BALANCED_FLOW
   document.getElementById('balancedFlowDetectionThreshold').addEventListener('input', (e) => {
     appState.config.fraudConfig.HIGH_BALANCED_FLOW_DETECTION_THRESHOLD = parseFloat(e.target.value);
   });
@@ -178,7 +353,6 @@ function initConfigInputs() {
     appState.config.fraudConfig.HIGH_BALANCED_FLOW_LOWER_RATIO = parseFloat(e.target.value) / 100;
   });
   
-  // НОВЫЕ параметры AGENT_TAKEOVER
   document.getElementById('takeoverMinDeposits').addEventListener('input', (e) => {
     appState.config.fraudConfig.AGENT_TAKEOVER_MIN_DEPOSITS = parseFloat(e.target.value);
   });
@@ -213,7 +387,6 @@ function updateProcessButton() {
   btn.disabled = !appState.mainData;
 }
 
-// IndexedDB для больших данных
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('CashierCheckupDB', 1);
@@ -230,9 +403,40 @@ function openDB() {
   });
 }
 
+async function saveResults(data) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction('results', 'readwrite');
+    const store = tx.objectStore('results');
+    
+    await store.put(data.fgSummary || [], 'fgSummary');
+    await store.put(data.grouped || [], 'grouped');
+    await store.put(data.fraudAnalysis || [], 'fraudAnalysis');
+    await store.put(data.config || {}, 'config');
+    await store.put(data.timestamp || new Date().toISOString(), 'timestamp');
+    
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => {
+        console.log('[App] Данные сохранены в IndexedDB');
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (error) {
+    console.error('[App] Ошибка сохранения в IndexedDB:', error);
+    throw error;
+  }
+}
+
 async function processData() {
   if (!appState.mainData) {
     alert('Загрузите основной файл');
+    return;
+  }
+  
+  // ПУНКТ 7: Валидация перед обработкой
+  if (!validateFraudSettings()) {
+    updateStatus('✗ Исправьте ошибки в настройках', 'error');
     return;
   }
   
@@ -258,7 +462,7 @@ async function processData() {
         fgSummary: result.fgSummary?.length
       });
       
-      localStorage.setItem('cashierCheckupResults', JSON.stringify(result));
+      await saveResults(result);
       
       updateStatus('✓ Обработка завершена!', 'success');
       
