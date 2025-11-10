@@ -16,7 +16,8 @@ function exportCSV(tabName) {
       filename = 'processed_data';
       break;
     case 'fgSummary':
-      data = results.fgSummary;
+      // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Восстанавливаем полные значения из DOM
+      data = restoreFullValuesFromTable(results.fgSummary, 'fgSummaryTable');
       filename = 'fg_summary';
       break;
     case 'fraud':
@@ -67,6 +68,33 @@ function exportCSV(tabName) {
   URL.revokeObjectURL(url);
   
   console.log('[Export] Экспортировано:', cleanData.length, 'строк');
+}
+
+// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Восстановление полных значений из data-атрибута
+function restoreFullValuesFromTable(originalData, tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return originalData;
+  
+  const rows = table.querySelectorAll('tbody tr');
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+  
+  const dataWithFullValues = originalData.map((row, index) => {
+    const newRow = { ...row };
+    const domRow = rows[index];
+    
+    if (domRow) {
+      headers.forEach((header, colIndex) => {
+        const cell = domRow.cells[colIndex];
+        if (cell && cell.dataset.fullValue) {
+          newRow[header] = cell.dataset.fullValue;
+        }
+      });
+    }
+    
+    return newRow;
+  });
+  
+  return dataWithFullValues;
 }
 
 function getSelectedFraudCases() {

@@ -129,7 +129,7 @@ async function loadResults() {
   }
   
   if (data.grouped && data.grouped.length > 0) {
-    renderTable(data.grouped, 'processedTable');
+    renderGroupedTable(data.grouped, 'processedTable');
   }
   
   if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
@@ -174,9 +174,20 @@ function renderTable(data, tableId) {
       
       headers.forEach(header => {
         const td = document.createElement('td');
-        const value = row[header];
+        let value = row[header];
         
-        if (typeof value === 'number') {
+        // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Сокращение длинного списка касс
+        if (header === 'Кассы' && typeof value === 'string' && value.length > 100) {
+          const cashiers = value.split(', ');
+          if (cashiers.length > 3) {
+            const preview = cashiers.slice(0, 3).join(', ');
+            const remaining = cashiers.length - 3;
+            td.innerHTML = `${preview} <span style="color:#999; cursor:help;" title="${value}">...и ещё ${remaining}</span>`;
+            td.dataset.fullValue = value; // Сохраняем полное значение для экспорта
+          } else {
+            td.textContent = value;
+          }
+        } else if (typeof value === 'number') {
           td.textContent = formatNumber(value);
           td.className = value >= 0 ? 'num-positive' : 'num-negative';
         } else {
@@ -191,6 +202,83 @@ function renderTable(data, tableId) {
   });
   
   table.appendChild(tbody);
+}
+
+// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Специализированный рендер для калькуляции
+function renderGroupedTable(data, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (!data || data.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-text">Нет данных для отображения</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Создаем обертку таблицы
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-wrapper';
+  
+  const table = document.createElement('table');
+  table.className = 'data-table';
+  
+  // Получаем заголовки (исключаем служебные поля)
+  const allHeaders = Object.keys(data[0]).filter(h => !h.startsWith('_'));
+  
+  // Заголовки таблицы
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  
+  allHeaders.forEach((header, index) => {
+    const th = document.createElement('th');
+    th.textContent = header;
+    th.dataset.column = index;
+    th.addEventListener('click', () => sortTable(table, index));
+    headerRow.appendChild(th);
+  });
+  
+  // Тело таблицы
+  const tbody = table.createTBody();
+  
+  data.forEach(row => {
+    const tr = tbody.insertRow();
+    
+    if (row._separator) {
+      tr.classList.add('separator-row');
+      const td = tr.insertCell();
+      td.colSpan = allHeaders.length;
+      td.textContent = row._cashier || row[allHeaders[0]] || '';
+    } else {
+      if (row._isFG) tr.classList.add('fg-row');
+      if (row._isOverall) tr.classList.add('overall-row');
+      
+      allHeaders.forEach(header => {
+        const td = tr.insertCell();
+        const value = row[header];
+        
+        if (typeof value === 'number') {
+          td.textContent = formatNumber(value);
+          
+          if (header === 'Профит' || header.includes('Проф')) {
+            td.className = value >= 0 ? 'num-positive' : 'num-negative';
+          }
+        } else {
+          td.textContent = value || '';
+        }
+      });
+    }
+  });
+  
+  wrapper.appendChild(table);
+  container.appendChild(wrapper);
+  
+  console.log('[Results] Калькуляция отрендерена:', data.length, 'строк');
 }
 
 function sortTable(table, columnIndex) {
@@ -329,6 +417,7 @@ function renderFraudFlat(cases, containerId) {
   });
 }
 
+// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Новая группировка ФГ → Касса → Игрок
 function renderFraudGroupedBySeverity(cases, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -345,6 +434,7 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     return;
   }
   
+  // Группировка: Severity → ФГ → Касса → Игроки
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   cases.forEach(c => {
@@ -361,12 +451,17 @@ function renderFraudGroupedBySeverity(cases, containerId) {
       if (!grouped[severity][agent][cashierId]) {
         grouped[severity][agent][cashierId] = {
           name: cashierName,
-          cases: []
+          players: []
         };
       }
       
-      if (!grouped[severity][agent][cashierId].cases.includes(c)) {
-        grouped[severity][agent][cashierId].cases.push(c);
+      // Добавляем игрока в кассу
+      const existingPlayer = grouped[severity][agent][cashierId].players.find(p => 
+        p.playerId === c.playerId && p.type === c.type
+      );
+      
+      if (!existingPlayer) {
+        grouped[severity][agent][cashierId].players.push(c);
       }
     });
   });
@@ -381,7 +476,7 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     
     const severityHeader = document.createElement('h2');
     const totalCases = agentNames.reduce((sum, agent) => {
-      return sum + Object.values(agents[agent]).reduce((s, c) => s + c.cases.length, 0);
+      return sum + Object.values(agents[agent]).reduce((s, c) => s + c.players.length, 0);
     }, 0);
     severityHeader.textContent = `${severity} (${totalCases})`;
     severityHeader.style.marginTop = '40px';
@@ -391,7 +486,7 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     
     agentNames.sort().forEach(agent => {
       const cashiers = agents[agent];
-      const agentTotalCases = Object.values(cashiers).reduce((sum, c) => sum + c.cases.length, 0);
+      const agentTotalCases = Object.values(cashiers).reduce((sum, c) => sum + c.players.length, 0);
       
       const agentHeader = document.createElement('h3');
       agentHeader.textContent = `${agent} (${agentTotalCases})`;
@@ -405,10 +500,24 @@ function renderFraudGroupedBySeverity(cases, containerId) {
         
         const cashierHeader = document.createElement('h4');
         cashierHeader.className = 'cashier-header';
-        cashierHeader.textContent = `Касса ${cashierId} (${cashierData.cases.length})`;
+        cashierHeader.textContent = `Касса ${cashierId} (${cashierData.players.length})`;
         container.appendChild(cashierHeader);
         
-        cashierData.cases.forEach(fraudCase => {
+        // Сортируем игроков по типу фрода для читаемости
+        const sortedPlayers = cashierData.players.sort((a, b) => {
+          const typeOrder = {
+            'HIGH_WITHDRAWALS': 0,
+            'HIGH_BALANCED_FLOW': 1,
+            'AGENT_TAKEOVER': 2,
+            'AGENT_SELF_PLAY': 3,
+            'MULTI_ACCOUNTS': 4,
+            'EMPTY_ACCOUNTS': 5,
+            'TRASH_ACCOUNTS': 6
+          };
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+        
+        sortedPlayers.forEach(fraudCase => {
           const div = createFraudCaseElement(fraudCase, globalIndex);
           div.classList.add('nested');
           container.appendChild(div);
