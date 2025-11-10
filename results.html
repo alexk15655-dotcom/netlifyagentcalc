@@ -33,7 +33,7 @@
       </button>
     </nav>
     
-    <!-- Сводка ФГ (теперь первый таб) -->
+    <!-- Сводка ФГ -->
     <div id="fgSummary" class="tab-content active">
       <div class="content-header">
         <h2>Сводка по финансовым группам</h2>
@@ -70,6 +70,13 @@
             💾 Экспорт CSV
           </button>
         </div>
+      </div>
+      
+      <!-- Кнопки выбора -->
+      <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; gap: 12px;">
+        <button class="btn-secondary" onclick="toggleSelectAll()" style="padding: 8px 16px;">Выбрать все</button>
+        <button class="btn-secondary" onclick="toggleSelectNone()" style="padding: 8px 16px;">Снять все</button>
+        <span id="selectedCount" style="margin-left: 16px; font-weight: 500; color: #555;">Выбрано: 0 из 0</span>
       </div>
       
       <!-- Фильтры -->

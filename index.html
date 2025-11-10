@@ -80,6 +80,13 @@
             <span>Создать сводку по ФГ</span>
           </label>
         </div>
+        
+        <div class="config-item checkbox-item">
+          <label>
+            <input type="checkbox" id="findSimilarNames">
+            <span>Искать похожие имена в калькуляции</span>
+          </label>
+        </div>
       </div>
       
       <button type="button" id="advancedBtn" class="btn-secondary" onclick="toggleAdvanced()">
@@ -135,7 +142,7 @@
             <input type="number" id="minAmountAnalysis" value="100" step="10" min="0">
           </div>
           
-          <!-- Крупные близкие вводы-выводы (НОВОЕ) -->
+          <!-- Крупные близкие вводы-выводы -->
           <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
             💰 Крупные близкие вводы-выводы
           </h4>
@@ -251,7 +258,7 @@
             <input type="number" id="nameSimilarityMulti" value="80" step="1" min="50" max="100">
           </div>
           
-          <!-- Концентрация выводов (НОВОЕ) -->
+          <!-- Концентрация выводов -->
           <h4 style="grid-column: 1 / -1; margin-top: 24px; margin-bottom: 8px; color: #667eea; font-size: 15px;">
             🎯 Концентрация выводов
           </h4>

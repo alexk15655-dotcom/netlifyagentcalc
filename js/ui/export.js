@@ -20,8 +20,11 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
-      // Экспортируем только отфильтрованные случаи
-      data = formatFraudForExport(window.filteredFraudCases || results.fraudAnalysis);
+      // Экспортируем только выбранные или все отфильтрованные
+      const casesToExport = window.selectedCases && window.selectedCases.size > 0
+        ? getSelectedFraudCases()
+        : window.filteredFraudCases || results.fraudAnalysis;
+      data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
     default:
@@ -64,6 +67,22 @@ function exportCSV(tabName) {
   URL.revokeObjectURL(url);
   
   console.log('[Export] Экспортировано:', cleanData.length, 'строк');
+}
+
+function getSelectedFraudCases() {
+  if (!window.filteredFraudCases) return [];
+  
+  const selectedIds = Array.from(window.selectedCases);
+  const selectedCasesArray = [];
+  
+  window.filteredFraudCases.forEach((fraudCase, index) => {
+    const caseId = `${fraudCase.playerId}_${fraudCase.type}_${index}`;
+    if (selectedIds.includes(caseId)) {
+      selectedCasesArray.push(fraudCase);
+    }
+  });
+  
+  return selectedCasesArray;
 }
 
 function formatFraudForExport(fraudCases) {

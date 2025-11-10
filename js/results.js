@@ -1,6 +1,7 @@
 'use strict';
 
 let currentTab = 'fgSummary';
+let selectedCases = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
@@ -222,6 +223,32 @@ function sortTable(table, columnIndex) {
   rows.forEach(row => tbody.appendChild(row));
 }
 
+function toggleSelectAll() {
+  selectedCases.clear();
+  document.querySelectorAll('.fraud-case-checkbox:not([style*="display: none"])').forEach(cb => {
+    if (cb.closest('.fraud-case').style.display !== 'none') {
+      cb.checked = true;
+      selectedCases.add(cb.dataset.caseId);
+    }
+  });
+  updateSelectedCount();
+}
+
+function toggleSelectNone() {
+  selectedCases.clear();
+  document.querySelectorAll('.fraud-case-checkbox').forEach(cb => {
+    cb.checked = false;
+  });
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  const visibleCheckboxes = Array.from(document.querySelectorAll('.fraud-case-checkbox'))
+    .filter(cb => cb.closest('.fraud-case').style.display !== 'none');
+  const total = visibleCheckboxes.length;
+  document.getElementById('selectedCount').textContent = `Выбрано: ${selectedCases.size} из ${total}`;
+}
+
 function applyFraudFilters() {
   const allCases = window.allFraudCases || [];
   
@@ -271,6 +298,8 @@ function applyFraudFilters() {
   } else {
     renderFraudFlat(filtered, 'fraudContent');
   }
+  
+  updateSelectedCount();
 }
 
 function renderFraudFlat(cases, containerId) {
@@ -294,13 +323,12 @@ function renderFraudFlat(cases, containerId) {
     return order[a.severity] - order[b.severity];
   });
   
-  sorted.forEach(fraudCase => {
-    const div = createFraudCaseElement(fraudCase);
+  sorted.forEach((fraudCase, index) => {
+    const div = createFraudCaseElement(fraudCase, index);
     container.appendChild(div);
   });
 }
 
-// ПУНКТ 3: Группировка по severity → agent → cashier
 function renderFraudGroupedBySeverity(cases, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -317,7 +345,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     return;
   }
   
-  // Шаг 1: Группировка по severity → agent → cashier
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   cases.forEach(c => {
@@ -328,7 +355,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
       grouped[severity][agent] = {};
     }
     
-    // Группируем по кассе
     c.cashiers.forEach(cashierName => {
       const cashierId = extractCashierIdFromName(cashierName);
       
@@ -339,21 +365,20 @@ function renderFraudGroupedBySeverity(cases, containerId) {
         };
       }
       
-      // Добавляем случай только один раз (даже если у него несколько касс)
       if (!grouped[severity][agent][cashierId].cases.includes(c)) {
         grouped[severity][agent][cashierId].cases.push(c);
       }
     });
   });
   
-  // Шаг 2: Рендеринг HTML
+  let globalIndex = 0;
+  
   ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
     const agents = grouped[severity];
     const agentNames = Object.keys(agents);
     
     if (agentNames.length === 0) return;
     
-    // Заголовок severity
     const severityHeader = document.createElement('h2');
     const totalCases = agentNames.reduce((sum, agent) => {
       return sum + Object.values(agents[agent]).reduce((s, c) => s + c.cases.length, 0);
@@ -364,12 +389,10 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     severityHeader.style.color = severity === 'HIGH' ? '#c62828' : severity === 'MEDIUM' ? '#ef6c00' : '#2e7d32';
     container.appendChild(severityHeader);
     
-    // Для каждого агента
     agentNames.sort().forEach(agent => {
       const cashiers = agents[agent];
       const agentTotalCases = Object.values(cashiers).reduce((sum, c) => sum + c.cases.length, 0);
       
-      // Заголовок агента
       const agentHeader = document.createElement('h3');
       agentHeader.textContent = `${agent} (${agentTotalCases})`;
       agentHeader.style.marginBottom = '12px';
@@ -377,25 +400,22 @@ function renderFraudGroupedBySeverity(cases, containerId) {
       agentHeader.style.fontSize = '18px';
       container.appendChild(agentHeader);
       
-      // Для каждой кассы агента
       Object.keys(cashiers).sort().forEach(cashierId => {
         const cashierData = cashiers[cashierId];
         
-        // Заголовок кассы
         const cashierHeader = document.createElement('h4');
         cashierHeader.className = 'cashier-header';
         cashierHeader.textContent = `Касса ${cashierId} (${cashierData.cases.length})`;
         container.appendChild(cashierHeader);
         
-        // Случаи кассы
         cashierData.cases.forEach(fraudCase => {
-          const div = createFraudCaseElement(fraudCase);
+          const div = createFraudCaseElement(fraudCase, globalIndex);
           div.classList.add('nested');
           container.appendChild(div);
+          globalIndex++;
         });
       });
       
-      // Разделитель между агентами
       const separator = document.createElement('div');
       separator.className = 'agent-separator';
       container.appendChild(separator);
@@ -403,14 +423,30 @@ function renderFraudGroupedBySeverity(cases, containerId) {
   });
 }
 
-function extractCashierIdFromName(cashierName) {
-  const match = String(cashierName).match(/^(\d+)[,\s]/);
-  return match ? match[1] : cashierName;
-}
-
-function createFraudCaseElement(fraudCase) {
+function createFraudCaseElement(fraudCase, index) {
   const div = document.createElement('div');
   div.className = `fraud-case severity-${fraudCase.severity.toLowerCase()}`;
+  
+  const caseId = `${fraudCase.playerId}_${fraudCase.type}_${index}`;
+  
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'fraud-case-checkbox';
+  checkbox.dataset.caseId = caseId;
+  checkbox.checked = selectedCases.has(caseId);
+  checkbox.style.marginRight = '12px';
+  checkbox.style.cursor = 'pointer';
+  checkbox.onchange = (e) => {
+    if (e.target.checked) {
+      selectedCases.add(caseId);
+    } else {
+      selectedCases.delete(caseId);
+    }
+    updateSelectedCount();
+  };
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.style.flex = '1';
   
   let html = `
     <div class="fraud-case-header">
@@ -432,8 +468,19 @@ function createFraudCaseElement(fraudCase) {
   html += `<strong>Детали:</strong> ${fraudCase.details}`;
   html += '</div>';
   
-  div.innerHTML = html;
+  contentDiv.innerHTML = html;
+  
+  div.style.display = 'flex';
+  div.style.alignItems = 'flex-start';
+  div.appendChild(checkbox);
+  div.appendChild(contentDiv);
+  
   return div;
+}
+
+function extractCashierIdFromName(cashierName) {
+  const match = String(cashierName).match(/^(\d+)[,\s]/);
+  return match ? match[1] : cashierName;
 }
 
 function getTypeTitle(type) {
