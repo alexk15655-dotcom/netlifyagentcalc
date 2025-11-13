@@ -1,7 +1,7 @@
 'use strict';
 
 let currentTab = 'fgSummary';
-let selectedCases = new Map(); // ИЗМЕНЕНО: Map вместо Set для хранения {index: fraudCase}
+window.selectedCases = new Map(); // КРИТИЧНО: Делаем глобальной через window
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
@@ -157,7 +157,7 @@ function renderCalculationTableVirtualized(data, containerId) {
     return;
   }
   
-  const CHUNK_SIZE = 100; // Рендерим по 100 строк
+  const CHUNK_SIZE = 100;
   let currentChunk = 0;
   let isLoading = false;
   
@@ -169,7 +169,6 @@ function renderCalculationTableVirtualized(data, containerId) {
   const table = document.createElement('table');
   table.className = 'data-table';
   
-  // Заголовки
   const firstDataRow = data.find(r => !r._separator);
   if (!firstDataRow) {
     container.innerHTML = '<div>Нет данных</div>';
@@ -195,7 +194,6 @@ function renderCalculationTableVirtualized(data, containerId) {
   
   const tbody = table.createTBody();
   
-  // Функция рендера чанка
   function renderChunk(startIndex) {
     const endIndex = Math.min(startIndex + CHUNK_SIZE, data.length);
     
@@ -229,11 +227,9 @@ function renderCalculationTableVirtualized(data, containerId) {
     }
   }
   
-  // Первый чанк
   renderChunk(0);
   currentChunk = 1;
   
-  // Ленивая загрузка при скролле
   wrapper.addEventListener('scroll', () => {
     if (isLoading) return;
     
@@ -241,14 +237,12 @@ function renderCalculationTableVirtualized(data, containerId) {
     const scrollHeight = wrapper.scrollHeight;
     const clientHeight = wrapper.clientHeight;
     
-    // Загружаем за 200px до конца
     if (scrollTop + clientHeight >= scrollHeight - 200) {
       const startIndex = currentChunk * CHUNK_SIZE;
       
       if (startIndex < data.length) {
         isLoading = true;
         
-        // Небольшая задержка для плавности
         setTimeout(() => {
           renderChunk(startIndex);
           currentChunk++;
@@ -264,7 +258,6 @@ function renderCalculationTableVirtualized(data, containerId) {
   console.log('[Results] Калькуляция: первый чанк отрендерен, всего строк:', data.length);
 }
 
-// Рендеринг сводки ФГ
 function renderFGSummaryTable(data, tableId) {
   const table = document.getElementById(tableId);
   if (!table) return;
@@ -351,21 +344,21 @@ function sortTable(table, columnIndex) {
 }
 
 function toggleSelectAll() {
-  selectedCases.clear();
+  window.selectedCases.clear();
   document.querySelectorAll('.fraud-case-checkbox').forEach(cb => {
     const fraudCase = cb.closest('.fraud-case');
     if (fraudCase && fraudCase.style.display !== 'none') {
       cb.checked = true;
       const index = parseInt(cb.dataset.caseIndex);
-      selectedCases.set(index, true); // Сохраняем индекс
+      window.selectedCases.set(index, true);
     }
   });
-  console.log('[Results] toggleSelectAll: выбрано индексов', selectedCases.size);
+  console.log('[Results] toggleSelectAll: выбрано индексов', window.selectedCases.size);
   updateSelectedCount();
 }
 
 function toggleSelectNone() {
-  selectedCases.clear();
+  window.selectedCases.clear();
   document.querySelectorAll('.fraud-case-checkbox').forEach(cb => {
     cb.checked = false;
   });
@@ -380,7 +373,7 @@ function updateSelectedCount() {
       return fraudCase && fraudCase.style.display !== 'none';
     });
   const total = visibleCheckboxes.length;
-  document.getElementById('selectedCount').textContent = `Выбрано: ${selectedCases.size} из ${total}`;
+  document.getElementById('selectedCount').textContent = `Выбрано: ${window.selectedCases.size} из ${total}`;
 }
 
 function applyFraudFilters() {
@@ -583,19 +576,19 @@ function createFraudCaseElement(fraudCase, index) {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'fraud-case-checkbox';
-  checkbox.dataset.caseIndex = index; // КРИТИЧНО
-  checkbox.checked = selectedCases.has(index);
+  checkbox.dataset.caseIndex = index;
+  checkbox.checked = window.selectedCases.has(index);
   checkbox.style.marginRight = '12px';
   checkbox.style.cursor = 'pointer';
   checkbox.onchange = (e) => {
     if (e.target.checked) {
-      selectedCases.set(index, true);
+      window.selectedCases.set(index, true);
       console.log('[Checkbox] Добавлен индекс:', index);
     } else {
-      selectedCases.delete(index);
+      window.selectedCases.delete(index);
       console.log('[Checkbox] Удален индекс:', index);
     }
-    console.log('[Checkbox] Текущие индексы:', Array.from(selectedCases.keys()));
+    console.log('[Checkbox] Текущие индексы:', Array.from(window.selectedCases.keys()));
     updateSelectedCount();
   };
   
