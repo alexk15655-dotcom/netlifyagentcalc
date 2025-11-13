@@ -20,17 +20,22 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
+      console.log('[Export] Начинаем экспорт фрода');
+      console.log('[Export] selectedCases.size:', window.selectedCases?.size);
+      console.log('[Export] selectedCases:', Array.from(window.selectedCases || []));
+      
       // КРИТИЧНО: Экспортируем только выбранные чекбоксами
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
+      
+      console.log('[Export] Будет экспортировано кейсов:', casesToExport.length);
       
       if (casesToExport.length === 0) {
         alert('Нет данных для экспорта. Выберите кейсы чекбоксами или примените фильтры.');
         return;
       }
       
-      console.log('[Export] Экспортируем кейсов:', casesToExport.length);
       data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
@@ -104,18 +109,27 @@ function restoreFullValuesFromTable(originalData, tableId) {
 
 // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем data-caseIndex для точного соответствия
 function getSelectedFraudCases() {
+  console.log('[Export] getSelectedFraudCases() начало');
+  
   const selectedCasesArray = [];
   const selectedIndices = new Set();
   
   // Собираем индексы из отмеченных чекбоксов
-  document.querySelectorAll('.fraud-case-checkbox:checked').forEach(cb => {
+  const checkboxes = document.querySelectorAll('.fraud-case-checkbox:checked');
+  console.log('[Export] Найдено отмеченных чекбоксов:', checkboxes.length);
+  
+  checkboxes.forEach((cb, i) => {
     const caseIndex = parseInt(cb.dataset.caseIndex);
+    const caseId = cb.dataset.caseId;
+    console.log(`[Export] Чекбокс ${i}: caseId="${caseId}" caseIndex=${caseIndex}`);
+    
     if (!isNaN(caseIndex)) {
       selectedIndices.add(caseIndex);
     }
   });
   
   console.log('[Export] Выбранные индексы:', Array.from(selectedIndices).sort((a,b) => a-b));
+  console.log('[Export] filteredFraudCases.length:', window.filteredFraudCases?.length);
   
   // Воспроизводим ТОЧНО ТОТ ЖЕ порядок, что и в рендеринге
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
@@ -177,6 +191,7 @@ function getSelectedFraudCases() {
         sortedPlayers.forEach(fraudCase => {
           // Проверяем, выбран ли этот индекс
           if (selectedIndices.has(currentIndex)) {
+            console.log(`[Export] Добавляем кейс с индексом ${currentIndex}:`, fraudCase.playerId, fraudCase.type);
             selectedCasesArray.push(fraudCase);
           }
           currentIndex++;
@@ -185,7 +200,9 @@ function getSelectedFraudCases() {
     });
   });
   
+  console.log('[Export] Всего обработано индексов:', currentIndex);
   console.log('[Export] Собрано выбранных кейсов:', selectedCasesArray.length);
+  
   return selectedCasesArray;
 }
 
