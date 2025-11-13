@@ -1,7 +1,7 @@
 'use strict';
 
 let currentTab = 'fgSummary';
-let selectedCases = new Set();
+let selectedCases = new Map(); // ИЗМЕНЕНО: Map вместо Set для хранения {index: fraudCase}
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
@@ -129,11 +129,10 @@ async function loadResults() {
     renderFGSummaryTable(data.fgSummary, 'fgSummaryTable');
   }
   
-  // КРИТИЧНО: Калькуляция - ПРОСТОЙ рендеринг БЕЗ виртуализации
+  // ВИРТУАЛИЗИРОВАННАЯ калькуляция
   if (data.grouped && data.grouped.length > 0) {
     console.log('[Results] Рендеринг калькуляции, строк:', data.grouped.length);
-    console.log('[Results] Первые 3 строки:', data.grouped.slice(0, 3));
-    renderCalculationTableSimple(data.grouped, 'processedTable');
+    renderCalculationTableVirtualized(data.grouped, 'processedTable');
   }
   
   if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
@@ -141,8 +140,8 @@ async function loadResults() {
   }
 }
 
-// НОВАЯ функция: простой рендеринг калькуляции
-function renderCalculationTableSimple(data, containerId) {
+// ВИРТУАЛИЗИРОВАННЫЙ рендеринг калькуляции
+function renderCalculationTableVirtualized(data, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   
@@ -158,13 +157,19 @@ function renderCalculationTableSimple(data, containerId) {
     return;
   }
   
+  const CHUNK_SIZE = 100; // Рендерим по 100 строк
+  let currentChunk = 0;
+  let isLoading = false;
+  
   const wrapper = document.createElement('div');
   wrapper.className = 'table-wrapper';
+  wrapper.style.maxHeight = '70vh';
+  wrapper.style.overflowY = 'auto';
   
   const table = document.createElement('table');
   table.className = 'data-table';
   
-  // Заголовки - берем из первой НЕ-сепараторной строки
+  // Заголовки
   const firstDataRow = data.find(r => !r._separator);
   if (!firstDataRow) {
     container.innerHTML = '<div>Нет данных</div>';
@@ -174,83 +179,89 @@ function renderCalculationTableSimple(data, containerId) {
   const headers = Object.keys(firstDataRow).filter(h => !h.startsWith('_'));
   
   const thead = table.createTHead();
+  thead.style.position = 'sticky';
+  thead.style.top = '0';
+  thead.style.zIndex = '10';
+  thead.style.backgroundColor = 'white';
+  
   const headerRow = thead.insertRow();
   
   headers.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
     th.dataset.column = index;
-    th.addEventListener('click', () => sortCalculationTable(table, index));
     headerRow.appendChild(th);
   });
   
-  // Данные
   const tbody = table.createTBody();
   
-  data.forEach(row => {
-    const tr = tbody.insertRow();
+  // Функция рендера чанка
+  function renderChunk(startIndex) {
+    const endIndex = Math.min(startIndex + CHUNK_SIZE, data.length);
     
-    if (row._separator) {
-      // Сепаратор - одна ячейка на всю ширину
-      tr.className = 'separator-row';
-      const td = tr.insertCell();
-      td.colSpan = headers.length;
-      td.textContent = row._cashier || '';
-    } else {
-      // Обычная строка
-      if (row._isFG) tr.className = 'fg-row';
-      if (row._isOverall) tr.className = 'overall-row';
+    for (let i = startIndex; i < endIndex; i++) {
+      const row = data[i];
+      const tr = tbody.insertRow();
       
-      headers.forEach(header => {
+      if (row._separator) {
+        tr.className = 'separator-row';
         const td = tr.insertCell();
-        let value = row[header];
+        td.colSpan = headers.length;
+        td.textContent = row._cashier || '';
+      } else {
+        if (row._isFG) tr.className = 'fg-row';
+        if (row._isOverall) tr.className = 'overall-row';
         
-        if (typeof value === 'number') {
-          td.textContent = formatNumber(value);
-          if (header.includes('Профит') || header.includes('профит')) {
-            td.className = value >= 0 ? 'num-positive' : 'num-negative';
+        headers.forEach(header => {
+          const td = tr.insertCell();
+          let value = row[header];
+          
+          if (typeof value === 'number') {
+            td.textContent = formatNumber(value);
+            if (header.includes('Профит') || header.includes('профит')) {
+              td.className = value >= 0 ? 'num-positive' : 'num-negative';
+            }
+          } else {
+            td.textContent = value || '';
           }
-        } else {
-          td.textContent = value || '';
-        }
-      });
+        });
+      }
+    }
+  }
+  
+  // Первый чанк
+  renderChunk(0);
+  currentChunk = 1;
+  
+  // Ленивая загрузка при скролле
+  wrapper.addEventListener('scroll', () => {
+    if (isLoading) return;
+    
+    const scrollTop = wrapper.scrollTop;
+    const scrollHeight = wrapper.scrollHeight;
+    const clientHeight = wrapper.clientHeight;
+    
+    // Загружаем за 200px до конца
+    if (scrollTop + clientHeight >= scrollHeight - 200) {
+      const startIndex = currentChunk * CHUNK_SIZE;
+      
+      if (startIndex < data.length) {
+        isLoading = true;
+        
+        // Небольшая задержка для плавности
+        setTimeout(() => {
+          renderChunk(startIndex);
+          currentChunk++;
+          isLoading = false;
+        }, 50);
+      }
     }
   });
   
   wrapper.appendChild(table);
   container.appendChild(wrapper);
   
-  console.log('[Results] Калькуляция отрендерена, строк в tbody:', tbody.rows.length);
-}
-
-function sortCalculationTable(table, columnIndex) {
-  const tbody = table.querySelector('tbody');
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-  
-  const currentDir = table.dataset.sortDir || 'desc';
-  const newDir = currentDir === 'desc' ? 'asc' : 'desc';
-  table.dataset.sortDir = newDir;
-  
-  rows.sort((a, b) => {
-    if (a.classList.contains('separator-row')) return -1;
-    if (b.classList.contains('separator-row')) return 1;
-    
-    const aText = a.cells[columnIndex]?.textContent.trim() || '';
-    const bText = b.cells[columnIndex]?.textContent.trim() || '';
-    
-    const aNum = parseFloat(aText.replace(/[^\d.-]/g, ''));
-    const bNum = parseFloat(bText.replace(/[^\d.-]/g, ''));
-    
-    if (!isNaN(aNum) && !isNaN(bNum)) {
-      return newDir === 'asc' ? aNum - bNum : bNum - aNum;
-    }
-    
-    return newDir === 'asc' ?
-      aText.localeCompare(bText, 'ru') :
-      bText.localeCompare(aText, 'ru');
-  });
-  
-  rows.forEach(row => tbody.appendChild(row));
+  console.log('[Results] Калькуляция: первый чанк отрендерен, всего строк:', data.length);
 }
 
 // Рендеринг сводки ФГ
@@ -283,7 +294,6 @@ function renderFGSummaryTable(data, tableId) {
       const td = document.createElement('td');
       let value = row[header];
       
-      // Компактное отображение касс
       if (header === 'Кассы' && typeof value === 'string' && value.length > 100) {
         const cashiers = value.split(', ');
         if (cashiers.length > 3) {
@@ -346,10 +356,11 @@ function toggleSelectAll() {
     const fraudCase = cb.closest('.fraud-case');
     if (fraudCase && fraudCase.style.display !== 'none') {
       cb.checked = true;
-      selectedCases.add(cb.dataset.caseId);
+      const index = parseInt(cb.dataset.caseIndex);
+      selectedCases.set(index, true); // Сохраняем индекс
     }
   });
-  console.log('[Results] toggleSelectAll: выбрано', selectedCases.size);
+  console.log('[Results] toggleSelectAll: выбрано индексов', selectedCases.size);
   updateSelectedCount();
 }
 
@@ -358,7 +369,7 @@ function toggleSelectNone() {
   document.querySelectorAll('.fraud-case-checkbox').forEach(cb => {
     cb.checked = false;
   });
-  console.log('[Results] toggleSelectNone: выбрано', selectedCases.size);
+  console.log('[Results] toggleSelectNone');
   updateSelectedCount();
 }
 
@@ -562,32 +573,29 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     });
   });
   
-  console.log('[Results] Фрод-анализ отрендерен, globalIndex:', globalIndex);
+  console.log('[Results] Фрод-анализ отрендерен, всего кейсов:', globalIndex);
 }
 
 function createFraudCaseElement(fraudCase, index) {
   const div = document.createElement('div');
   div.className = `fraud-case severity-${fraudCase.severity.toLowerCase()}`;
   
-  const caseId = `case_${index}`;
-  
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'fraud-case-checkbox';
-  checkbox.dataset.caseId = caseId;
   checkbox.dataset.caseIndex = index; // КРИТИЧНО
-  checkbox.checked = selectedCases.has(caseId);
+  checkbox.checked = selectedCases.has(index);
   checkbox.style.marginRight = '12px';
   checkbox.style.cursor = 'pointer';
   checkbox.onchange = (e) => {
     if (e.target.checked) {
-      selectedCases.add(caseId);
-      console.log('[Checkbox] Добавлен:', caseId, 'index:', index);
+      selectedCases.set(index, true);
+      console.log('[Checkbox] Добавлен индекс:', index);
     } else {
-      selectedCases.delete(caseId);
-      console.log('[Checkbox] Удален:', caseId);
+      selectedCases.delete(index);
+      console.log('[Checkbox] Удален индекс:', index);
     }
-    console.log('[Checkbox] Текущий selectedCases:', Array.from(selectedCases));
+    console.log('[Checkbox] Текущие индексы:', Array.from(selectedCases.keys()));
     updateSelectedCount();
   };
   

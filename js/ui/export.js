@@ -21,8 +21,9 @@ function exportCSV(tabName) {
       break;
     case 'fraud':
       console.log('[Export] Начинаем экспорт фрода');
+      console.log('[Export] selectedCases (Map):', window.selectedCases);
       console.log('[Export] selectedCases.size:', window.selectedCases?.size);
-      console.log('[Export] selectedCases:', Array.from(window.selectedCases || []));
+      console.log('[Export] selectedCases keys:', Array.from(window.selectedCases?.keys() || []));
       
       // КРИТИЧНО: Экспортируем только выбранные чекбоксами
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
@@ -107,29 +108,19 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
-// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем data-caseIndex для точного соответствия
+// ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Используем selectedCases Map напрямую
 function getSelectedFraudCases() {
   console.log('[Export] getSelectedFraudCases() начало');
   
+  const selectedIndices = new Set(window.selectedCases.keys());
+  console.log('[Export] Выбранные индексы из Map:', Array.from(selectedIndices).sort((a,b) => a-b));
+  
+  if (selectedIndices.size === 0) {
+    console.warn('[Export] Нет выбранных индексов!');
+    return [];
+  }
+  
   const selectedCasesArray = [];
-  const selectedIndices = new Set();
-  
-  // Собираем индексы из отмеченных чекбоксов
-  const checkboxes = document.querySelectorAll('.fraud-case-checkbox:checked');
-  console.log('[Export] Найдено отмеченных чекбоксов:', checkboxes.length);
-  
-  checkboxes.forEach((cb, i) => {
-    const caseIndex = parseInt(cb.dataset.caseIndex);
-    const caseId = cb.dataset.caseId;
-    console.log(`[Export] Чекбокс ${i}: caseId="${caseId}" caseIndex=${caseIndex}`);
-    
-    if (!isNaN(caseIndex)) {
-      selectedIndices.add(caseIndex);
-    }
-  });
-  
-  console.log('[Export] Выбранные индексы:', Array.from(selectedIndices).sort((a,b) => a-b));
-  console.log('[Export] filteredFraudCases.length:', window.filteredFraudCases?.length);
   
   // Воспроизводим ТОЧНО ТОТ ЖЕ порядок, что и в рендеринге
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
