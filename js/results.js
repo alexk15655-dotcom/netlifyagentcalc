@@ -124,13 +124,14 @@ async function loadResults() {
     fgSummary: data.fgSummary?.length
   });
   
+  // Сводка ФГ - используем renderTable из results-renderer.js
   if (data.fgSummary && data.fgSummary.length > 0) {
     renderFGSummaryTable(data.fgSummary, 'fgSummaryTable');
   }
   
-  // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Используем правильный рендеринг для калькуляции
+  // КРИТИЧНО: Калькуляция - используем renderGroupedTableVirtualized из results-renderer.js
   if (data.grouped && data.grouped.length > 0) {
-    renderCalculationTable(data.grouped, 'processedTable');
+    renderGroupedTableVirtualized(data.grouped, 'processedTable');
   }
   
   if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
@@ -138,80 +139,7 @@ async function loadResults() {
   }
 }
 
-// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Специализированный рендеринг для калькуляции
-function renderCalculationTable(data, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (!data || data.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <div class="empty-state-text">Нет данных для отображения</div>
-      </div>
-    `;
-    return;
-  }
-  
-  const wrapper = document.createElement('div');
-  wrapper.className = 'table-wrapper';
-  
-  const table = document.createElement('table');
-  table.className = 'data-table';
-  
-  // Заголовки
-  const headers = Object.keys(data[0]).filter(h => !h.startsWith('_'));
-  const thead = table.createTHead();
-  const headerRow = thead.insertRow();
-  
-  headers.forEach((header, index) => {
-    const th = document.createElement('th');
-    th.textContent = header;
-    th.dataset.column = index;
-    th.addEventListener('click', () => sortTable(table, index));
-    headerRow.appendChild(th);
-  });
-  
-  // Данные
-  const tbody = table.createTBody();
-  data.forEach(row => {
-    const tr = document.createElement('tr');
-    
-    if (row._separator) {
-      tr.classList.add('separator-row');
-      const td = document.createElement('td');
-      td.colSpan = headers.length;
-      td.textContent = row._cashier || row[headers[0]] || '';
-      tr.appendChild(td);
-    } else {
-      if (row._isFG) tr.classList.add('fg-row');
-      if (row._isOverall) tr.classList.add('overall-row');
-      
-      headers.forEach(header => {
-        const td = document.createElement('td');
-        let value = row[header];
-        
-        if (typeof value === 'number') {
-          td.textContent = formatNumber(value);
-          td.className = value >= 0 ? 'num-positive' : 'num-negative';
-        } else {
-          td.textContent = value || '';
-        }
-        
-        tr.appendChild(td);
-      });
-    }
-    
-    tbody.appendChild(tr);
-  });
-  
-  wrapper.appendChild(table);
-  container.appendChild(wrapper);
-}
-
-// Рендеринг сводки ФГ
+// Рендеринг сводки ФГ (компактный, без виртуализации)
 function renderFGSummaryTable(data, tableId) {
   const table = document.getElementById(tableId);
   if (!table) return;
@@ -300,8 +228,9 @@ function sortTable(table, columnIndex) {
 
 function toggleSelectAll() {
   selectedCases.clear();
-  document.querySelectorAll('.fraud-case-checkbox:not([style*="display: none"])').forEach(cb => {
-    if (cb.closest('.fraud-case').style.display !== 'none') {
+  document.querySelectorAll('.fraud-case-checkbox').forEach(cb => {
+    const fraudCase = cb.closest('.fraud-case');
+    if (fraudCase && fraudCase.style.display !== 'none') {
       cb.checked = true;
       selectedCases.add(cb.dataset.caseId);
     }
@@ -319,7 +248,10 @@ function toggleSelectNone() {
 
 function updateSelectedCount() {
   const visibleCheckboxes = Array.from(document.querySelectorAll('.fraud-case-checkbox'))
-    .filter(cb => cb.closest('.fraud-case').style.display !== 'none');
+    .filter(cb => {
+      const fraudCase = cb.closest('.fraud-case');
+      return fraudCase && fraudCase.style.display !== 'none';
+    });
   const total = visibleCheckboxes.length;
   document.getElementById('selectedCount').textContent = `Выбрано: ${selectedCases.size} из ${total}`;
 }
@@ -519,12 +451,13 @@ function createFraudCaseElement(fraudCase, index) {
   const div = document.createElement('div');
   div.className = `fraud-case severity-${fraudCase.severity.toLowerCase()}`;
   
-  const caseId = `${fraudCase.playerId}_${fraudCase.type}_${index}`;
+  const caseId = `case_${index}`;
   
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'fraud-case-checkbox';
   checkbox.dataset.caseId = caseId;
+  checkbox.dataset.caseIndex = index; // КРИТИЧНО: сохраняем индекс для export
   checkbox.checked = selectedCases.has(caseId);
   checkbox.style.marginRight = '12px';
   checkbox.style.cursor = 'pointer';

@@ -20,7 +20,7 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
-      // КРИТИЧНО: Экспортируем только выбранные чекбоксами, если есть выбор
+      // КРИТИЧНО: Экспортируем только выбранные чекбоксами
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
@@ -102,25 +102,22 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
-// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем индексы из filteredFraudCases
+// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем data-caseIndex для точного соответствия
 function getSelectedFraudCases() {
   const selectedCasesArray = [];
-  
-  // Извлекаем индексы из caseId
   const selectedIndices = new Set();
-  window.selectedCases.forEach(caseId => {
-    // caseId формат: ${playerId}_${type}_${globalIndex}
-    const parts = caseId.split('_');
-    const globalIndex = parseInt(parts[parts.length - 1]);
-    selectedIndices.add(globalIndex);
+  
+  // Собираем индексы из отмеченных чекбоксов
+  document.querySelectorAll('.fraud-case-checkbox:checked').forEach(cb => {
+    const caseIndex = parseInt(cb.dataset.caseIndex);
+    if (!isNaN(caseIndex)) {
+      selectedIndices.add(caseIndex);
+    }
   });
   
-  console.log('[Export] Выбранные индексы:', Array.from(selectedIndices));
+  console.log('[Export] Выбранные индексы:', Array.from(selectedIndices).sort((a,b) => a-b));
   
-  // Собираем кейсы по индексам из отрисованного списка
-  let currentIndex = 0;
-  
-  // Проходим в том же порядке, что и рендеринг
+  // Воспроизводим ТОЧНО ТОТ ЖЕ порядок, что и в рендеринге
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   window.filteredFraudCases.forEach(c => {
@@ -151,7 +148,9 @@ function getSelectedFraudCases() {
     });
   });
   
-  // Теперь проходим в порядке рендеринга и собираем выбранные
+  let currentIndex = 0;
+  
+  // Проходим в ТОМ ЖЕ порядке что и renderFraudGroupedBySeverity
   ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
     const agents = grouped[severity];
     const agentNames = Object.keys(agents).sort();
@@ -176,6 +175,7 @@ function getSelectedFraudCases() {
         });
         
         sortedPlayers.forEach(fraudCase => {
+          // Проверяем, выбран ли этот индекс
           if (selectedIndices.has(currentIndex)) {
             selectedCasesArray.push(fraudCase);
           }
