@@ -1,7 +1,68 @@
 'use strict';
 
 let currentTab = 'fgSummary';
-window.selectedCases = new Map(); // КРИТИЧНО: Делаем глобальной через window
+window.selectedCases = new Map();
+
+// Настройки видимых столбцов (по умолчанию)
+const defaultColumnSettings = {
+  fgSummary: {
+    'ФГ': true,
+    'Кассы': true,
+    'Деп. $': true,
+    'Преп. $': true,
+    'Игроки': true,
+    'Выв. $': true,
+    'Профит ($)': true,
+    'Ввод/вывод %': true,
+    'Деп/преп %': true,
+    'Комиссия $': true,
+    'Ср. деп. $': true,
+    'Ср. выв.($)': true,
+    'Кол-во касс': true,
+    // Устаревшие столбцы - выключены по умолчанию
+    'Комиссия агента': false,
+    'Махинации с платежами': false,
+    'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
+    'Комиссия агента (в валюте админа по курсу текущего дня)': false
+  },
+  calculation: {
+    'Номер игрока': true,
+    'Игрок': true,
+    'Сумма пополнений (в валюте админа по курсу текущего дня)': true,
+    'Сумма вывода (в валюте админа по курсу текущего дня)': true,
+    'Количество пополнений': true,
+    'Количество выводов': true,
+    'Касса': true,
+    'Комиссия': true,
+    'Средний депозит': true,
+    'Средний вывод': true,
+    'Профит': true,
+    'Похожие имена': true,
+    // Устаревшие столбцы - выключены по умолчанию
+    'Комиссия агента': false,
+    'Махинации с платежами': false,
+    'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
+    'Комиссия агента (в валюте админа по курсу текущего дня)': false
+  }
+};
+
+// Загрузка настроек из sessionStorage
+function loadColumnSettings(type) {
+  const saved = sessionStorage.getItem(`columnSettings_${type}`);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error('[Results] Ошибка парсинга настроек столбцов:', e);
+    }
+  }
+  return { ...defaultColumnSettings[type] };
+}
+
+// Сохранение настроек в sessionStorage
+function saveColumnSettings(type, settings) {
+  sessionStorage.setItem(`columnSettings_${type}`, JSON.stringify(settings));
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
@@ -140,6 +201,82 @@ async function loadResults() {
   }
 }
 
+// Модальное окно для выбора столбцов
+function openColumnModal(type) {
+  const modalId = `columnModal_${type}`;
+  let modal = document.getElementById(modalId);
+  
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'column-modal';
+    modal.innerHTML = `
+      <div class="column-modal-content">
+        <div class="column-modal-header">
+          <h3>Выбор столбцов</h3>
+          <button class="column-modal-close" onclick="closeColumnModal('${type}')">&times;</button>
+        </div>
+        <div class="column-modal-body" id="${modalId}_body"></div>
+        <div class="column-modal-footer">
+          <button class="btn-secondary" onclick="resetColumnSettings('${type}')">Сбросить</button>
+          <button class="btn-export" onclick="applyColumnSettings('${type}')">Применить</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  const settings = loadColumnSettings(type);
+  const body = document.getElementById(`${modalId}_body`);
+  body.innerHTML = '';
+  
+  Object.keys(settings).forEach(column => {
+    const label = document.createElement('label');
+    label.className = 'column-checkbox';
+    label.innerHTML = `
+      <input type="checkbox" value="${column}" ${settings[column] ? 'checked' : ''}>
+      <span>${column}</span>
+    `;
+    body.appendChild(label);
+  });
+  
+  modal.style.display = 'flex';
+}
+
+function closeColumnModal(type) {
+  const modal = document.getElementById(`columnModal_${type}`);
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+function resetColumnSettings(type) {
+  saveColumnSettings(type, { ...defaultColumnSettings[type] });
+  closeColumnModal(type);
+  applyColumnSettings(type);
+}
+
+function applyColumnSettings(type) {
+  const modalId = `columnModal_${type}`;
+  const body = document.getElementById(`${modalId}_body`);
+  const checkboxes = body.querySelectorAll('input[type="checkbox"]');
+  
+  const settings = {};
+  checkboxes.forEach(cb => {
+    settings[cb.value] = cb.checked;
+  });
+  
+  saveColumnSettings(type, settings);
+  closeColumnModal(type);
+  
+  // Перерендерить таблицу
+  if (type === 'fgSummary') {
+    renderFGSummaryTable(window.cashierCheckupResults.fgSummary, 'fgSummaryTable');
+  } else if (type === 'calculation') {
+    renderCalculationTableVirtualized(window.cashierCheckupResults.grouped, 'processedTable');
+  }
+}
+
 // ВИРТУАЛИЗИРОВАННЫЙ рендеринг калькуляции
 function renderCalculationTableVirtualized(data, containerId) {
   const container = document.getElementById(containerId);
@@ -157,6 +294,15 @@ function renderCalculationTableVirtualized(data, containerId) {
     return;
   }
   
+  // Добавляем поле поиска
+  const searchContainer = document.createElement('div');
+  searchContainer.className = 'player-search-container';
+  searchContainer.innerHTML = `
+    <input type="text" id="playerSearchInput" placeholder="🔍 Поиск по номеру игрока..." class="player-search-input">
+    <span id="playerSearchResults" class="player-search-results">Всего записей: ${data.filter(r => !r._separator && !r._isFG && !r._isOverall).length}</span>
+  `;
+  container.appendChild(searchContainer);
+  
   const CHUNK_SIZE = 100;
   let currentChunk = 0;
   let isLoading = false;
@@ -168,6 +314,7 @@ function renderCalculationTableVirtualized(data, containerId) {
   
   const table = document.createElement('table');
   table.className = 'data-table';
+  table.id = 'calculationTable';
   
   const firstDataRow = data.find(r => !r._separator);
   if (!firstDataRow) {
@@ -175,7 +322,9 @@ function renderCalculationTableVirtualized(data, containerId) {
     return;
   }
   
-  const headers = Object.keys(firstDataRow).filter(h => !h.startsWith('_'));
+  const allHeaders = Object.keys(firstDataRow).filter(h => !h.startsWith('_'));
+  const columnSettings = loadColumnSettings('calculation');
+  const headers = allHeaders.filter(h => columnSettings[h] !== false);
   
   const thead = table.createTHead();
   thead.style.position = 'sticky';
@@ -200,6 +349,7 @@ function renderCalculationTableVirtualized(data, containerId) {
     for (let i = startIndex; i < endIndex; i++) {
       const row = data[i];
       const tr = tbody.insertRow();
+      tr.dataset.rowIndex = i;
       
       if (row._separator) {
         tr.className = 'separator-row';
@@ -210,11 +360,35 @@ function renderCalculationTableVirtualized(data, containerId) {
         if (row._isFG) tr.className = 'fg-row';
         if (row._isOverall) tr.className = 'overall-row';
         
+        // Сохраняем номер игрока для поиска
+        const playerIdKey = allHeaders.find(h => h.includes('игрока') || h.includes('Номер'));
+        if (playerIdKey) {
+          tr.dataset.playerId = row[playerIdKey] || '';
+        }
+        
+        // Сохраняем похожие имена для поиска
+        if (row['Похожие имена']) {
+          tr.dataset.similarNames = row['Похожие имена'];
+        }
+        
         headers.forEach(header => {
           const td = tr.insertCell();
           let value = row[header];
           
-          if (typeof value === 'number') {
+          // Обработка "Похожие имена" с сокращением
+          if (header === 'Похожие имена' && value) {
+            const fullValue = value;
+            const parts = String(value).split(', ');
+            
+            if (parts.length > 3) {
+              const preview = parts.slice(0, 3).join(', ');
+              const remaining = parts.length - 3;
+              td.innerHTML = `${preview} <span class="truncated-hint" title="${fullValue}">...и ещё ${remaining}</span>`;
+              td.dataset.fullValue = fullValue;
+            } else {
+              td.textContent = value;
+            }
+          } else if (typeof value === 'number') {
             td.textContent = formatNumber(value);
             if (header.includes('Профит') || header.includes('профит')) {
               td.className = value >= 0 ? 'num-positive' : 'num-negative';
@@ -255,7 +429,68 @@ function renderCalculationTableVirtualized(data, containerId) {
   wrapper.appendChild(table);
   container.appendChild(wrapper);
   
+  // Добавляем обработчик поиска с debounce
+  const searchInput = document.getElementById('playerSearchInput');
+  let searchTimeout;
+  
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      filterPlayerRows(e.target.value.trim());
+    }, 300);
+  });
+  
   console.log('[Results] Калькуляция: первый чанк отрендерен, всего строк:', data.length);
+}
+
+// Фильтрация строк по номеру игрока
+function filterPlayerRows(searchTerm) {
+  const table = document.getElementById('calculationTable');
+  if (!table) return;
+  
+  const tbody = table.querySelector('tbody');
+  const rows = tbody.querySelectorAll('tr');
+  
+  if (!searchTerm) {
+    // Показать все строки
+    rows.forEach(row => {
+      row.style.display = '';
+    });
+    
+    const totalRows = Array.from(rows).filter(r => 
+      !r.classList.contains('separator-row') && 
+      !r.classList.contains('fg-row') && 
+      !r.classList.contains('overall-row')
+    ).length;
+    
+    document.getElementById('playerSearchResults').textContent = `Всего записей: ${totalRows}`;
+    return;
+  }
+  
+  const searchLower = searchTerm.toLowerCase();
+  let foundCount = 0;
+  
+  rows.forEach(row => {
+    // Не фильтруем сепараторы, ФГ и Итого
+    if (row.classList.contains('separator-row') || 
+        row.classList.contains('fg-row') || 
+        row.classList.contains('overall-row')) {
+      row.style.display = '';
+      return;
+    }
+    
+    const playerId = (row.dataset.playerId || '').toLowerCase();
+    const similarNames = (row.dataset.similarNames || '').toLowerCase();
+    
+    if (playerId.includes(searchLower) || similarNames.includes(searchLower)) {
+      row.style.display = '';
+      foundCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  
+  document.getElementById('playerSearchResults').textContent = `Найдено: ${foundCount} записей`;
 }
 
 function renderFGSummaryTable(data, tableId) {
@@ -264,10 +499,13 @@ function renderFGSummaryTable(data, tableId) {
   
   table.innerHTML = '';
   
+  const columnSettings = loadColumnSettings('fgSummary');
+  const allHeaders = Object.keys(data[0]).filter(key => !key.startsWith('_') && key !== 'Export');
+  const headers = allHeaders.filter(h => columnSettings[h] !== false);
+  
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   
-  const headers = Object.keys(data[0]).filter(key => !key.startsWith('_') && key !== 'Export');
   headers.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
@@ -287,12 +525,13 @@ function renderFGSummaryTable(data, tableId) {
       const td = document.createElement('td');
       let value = row[header];
       
-      if (header === 'Кассы' && typeof value === 'string' && value.length > 100) {
+      // ИЗМЕНЕНИЕ: Сокращаем список касс если > 1
+      if (header === 'Кассы' && typeof value === 'string') {
         const cashiers = value.split(', ');
-        if (cashiers.length > 3) {
-          const preview = cashiers.slice(0, 3).join(', ');
-          const remaining = cashiers.length - 3;
-          td.innerHTML = `${preview} <span style="color:#999; cursor:help;" title="${value}">...и ещё ${remaining}</span>`;
+        if (cashiers.length > 1) {
+          const preview = cashiers[0];
+          const remaining = cashiers.length - 1;
+          td.innerHTML = `${preview} <span class="truncated-hint" title="${value}">...и ещё ${remaining}</span>`;
           td.dataset.fullValue = value;
         } else {
           td.textContent = value;
