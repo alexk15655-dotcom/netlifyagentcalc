@@ -20,7 +20,7 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
-      // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Приоритет выбранным чекбоксам
+      // КРИТИЧНО: Экспортируем только выбранные чекбоксами, если есть выбор
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
@@ -30,6 +30,7 @@ function exportCSV(tabName) {
         return;
       }
       
+      console.log('[Export] Экспортируем кейсов:', casesToExport.length);
       data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
@@ -72,7 +73,7 @@ function exportCSV(tabName) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   
-  console.log('[Export] Экспортировано:', cleanData.length, 'строк');
+  console.log('[Export] Экспортировано строк:', cleanData.length);
 }
 
 function restoreFullValuesFromTable(originalData, tableId) {
@@ -101,36 +102,96 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
-// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Получение ТОЛЬКО выбранных кейсов по чекбоксам
+// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем индексы из filteredFraudCases
 function getSelectedFraudCases() {
   const selectedCasesArray = [];
   
-  // Проходим по всем отмеченным чекбоксам
-  document.querySelectorAll('.fraud-case-checkbox:checked').forEach(checkbox => {
-    const caseId = checkbox.dataset.caseId;
-    
-    // Парсим caseId: ${playerId}_${type}_${globalIndex}
+  // Извлекаем индексы из caseId
+  const selectedIndices = new Set();
+  window.selectedCases.forEach(caseId => {
+    // caseId формат: ${playerId}_${type}_${globalIndex}
     const parts = caseId.split('_');
     const globalIndex = parseInt(parts[parts.length - 1]);
-    const type = parts.slice(1, -1).join('_');
-    const playerId = parts[0];
-    
-    // Ищем case в отфильтрованных данных
-    const fraudCase = window.filteredFraudCases.find((c) => {
-      return c.playerId === playerId && c.type === type;
-    });
-    
-    if (fraudCase && !selectedCasesArray.some(existing => 
-      existing.playerId === fraudCase.playerId && 
-      existing.type === fraudCase.type &&
-      JSON.stringify(existing.cashiers) === JSON.stringify(fraudCase.cashiers)
-    )) {
-      selectedCasesArray.push(fraudCase);
-    }
+    selectedIndices.add(globalIndex);
   });
   
-  console.log('[Export] Выбрано чекбоксами:', selectedCasesArray.length, 'кейсов');
+  console.log('[Export] Выбранные индексы:', Array.from(selectedIndices));
+  
+  // Собираем кейсы по индексам из отрисованного списка
+  let currentIndex = 0;
+  
+  // Проходим в том же порядке, что и рендеринг
+  const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
+  
+  window.filteredFraudCases.forEach(c => {
+    const severity = c.severity;
+    const agent = c.agentName || 'Неизвестный агент';
+    
+    if (!grouped[severity][agent]) {
+      grouped[severity][agent] = {};
+    }
+    
+    c.cashiers.forEach(cashierName => {
+      const cashierId = extractCashierIdFromName(cashierName);
+      
+      if (!grouped[severity][agent][cashierId]) {
+        grouped[severity][agent][cashierId] = {
+          name: cashierName,
+          players: []
+        };
+      }
+      
+      const existingPlayer = grouped[severity][agent][cashierId].players.find(p => 
+        p.playerId === c.playerId && p.type === c.type
+      );
+      
+      if (!existingPlayer) {
+        grouped[severity][agent][cashierId].players.push(c);
+      }
+    });
+  });
+  
+  // Теперь проходим в порядке рендеринга и собираем выбранные
+  ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
+    const agents = grouped[severity];
+    const agentNames = Object.keys(agents).sort();
+    
+    agentNames.forEach(agent => {
+      const cashiers = agents[agent];
+      
+      Object.keys(cashiers).sort().forEach(cashierId => {
+        const cashierData = cashiers[cashierId];
+        
+        const sortedPlayers = cashierData.players.sort((a, b) => {
+          const typeOrder = {
+            'HIGH_WITHDRAWALS': 0,
+            'HIGH_BALANCED_FLOW': 1,
+            'AGENT_TAKEOVER': 2,
+            'AGENT_SELF_PLAY': 3,
+            'MULTI_ACCOUNTS': 4,
+            'EMPTY_ACCOUNTS': 5,
+            'TRASH_ACCOUNTS': 6
+          };
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+        
+        sortedPlayers.forEach(fraudCase => {
+          if (selectedIndices.has(currentIndex)) {
+            selectedCasesArray.push(fraudCase);
+          }
+          currentIndex++;
+        });
+      });
+    });
+  });
+  
+  console.log('[Export] Собрано выбранных кейсов:', selectedCasesArray.length);
   return selectedCasesArray;
+}
+
+function extractCashierIdFromName(cashierName) {
+  const match = String(cashierName).match(/^(\d+)[,\s]/);
+  return match ? match[1] : cashierName;
 }
 
 function formatFraudForExport(fraudCases) {
