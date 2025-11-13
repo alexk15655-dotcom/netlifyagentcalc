@@ -21,10 +21,16 @@ function exportCSV(tabName) {
       filename = 'fg_summary';
       break;
     case 'fraud':
-      // Экспортируем только выбранные или все отфильтрованные
+      // ИСПРАВЛЕНО: Экспортируем только выбранные или все отфильтрованные
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
+      
+      if (casesToExport.length === 0) {
+        alert('Нет выбранных случаев для экспорта');
+        return;
+      }
+      
       data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
@@ -97,19 +103,32 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
+// ИСПРАВЛЕНО: Используем data-атрибут из DOM для точного соответствия
 function getSelectedFraudCases() {
-  if (!window.filteredFraudCases) return [];
-  
-  const selectedIds = Array.from(window.selectedCases);
   const selectedCasesArray = [];
   
-  window.filteredFraudCases.forEach((fraudCase, index) => {
-    const caseId = `${fraudCase.playerId}_${fraudCase.type}_${index}`;
-    if (selectedIds.includes(caseId)) {
+  // Получаем все отмеченные чекбоксы
+  document.querySelectorAll('.fraud-case-checkbox:checked').forEach(checkbox => {
+    const caseId = checkbox.dataset.caseId;
+    
+    // Парсим caseId для поиска в данных
+    // Формат: ${playerId}_${type}_${globalIndex}
+    const parts = caseId.split('_');
+    const globalIndex = parseInt(parts[parts.length - 1]);
+    const type = parts.slice(1, -1).join('_');
+    const playerId = parts[0];
+    
+    // Ищем case по совпадению всех параметров
+    const fraudCase = window.filteredFraudCases.find((c, idx) => {
+      return c.playerId === playerId && c.type === type;
+    });
+    
+    if (fraudCase && !selectedCasesArray.includes(fraudCase)) {
       selectedCasesArray.push(fraudCase);
     }
   });
   
+  console.log('[Export] Выбрано случаев:', selectedCasesArray.length);
   return selectedCasesArray;
 }
 
