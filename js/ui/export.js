@@ -16,18 +16,17 @@ function exportCSV(tabName) {
       filename = 'processed_data';
       break;
     case 'fgSummary':
-      // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Восстанавливаем полные значения из DOM
       data = restoreFullValuesFromTable(results.fgSummary, 'fgSummaryTable');
       filename = 'fg_summary';
       break;
     case 'fraud':
-      // ИСПРАВЛЕНО: Экспортируем только выбранные или все отфильтрованные
+      // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Приоритет выбранным чекбоксам
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
       
       if (casesToExport.length === 0) {
-        alert('Нет выбранных случаев для экспорта');
+        alert('Нет данных для экспорта. Выберите кейсы чекбоксами или примените фильтры.');
         return;
       }
       
@@ -76,7 +75,6 @@ function exportCSV(tabName) {
   console.log('[Export] Экспортировано:', cleanData.length, 'строк');
 }
 
-// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Восстановление полных значений из data-атрибута
 function restoreFullValuesFromTable(originalData, tableId) {
   const table = document.getElementById(tableId);
   if (!table) return originalData;
@@ -103,32 +101,35 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
-// ИСПРАВЛЕНО: Используем data-атрибут из DOM для точного соответствия
+// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Получение ТОЛЬКО выбранных кейсов по чекбоксам
 function getSelectedFraudCases() {
   const selectedCasesArray = [];
   
-  // Получаем все отмеченные чекбоксы
+  // Проходим по всем отмеченным чекбоксам
   document.querySelectorAll('.fraud-case-checkbox:checked').forEach(checkbox => {
     const caseId = checkbox.dataset.caseId;
     
-    // Парсим caseId для поиска в данных
-    // Формат: ${playerId}_${type}_${globalIndex}
+    // Парсим caseId: ${playerId}_${type}_${globalIndex}
     const parts = caseId.split('_');
     const globalIndex = parseInt(parts[parts.length - 1]);
     const type = parts.slice(1, -1).join('_');
     const playerId = parts[0];
     
-    // Ищем case по совпадению всех параметров
-    const fraudCase = window.filteredFraudCases.find((c, idx) => {
+    // Ищем case в отфильтрованных данных
+    const fraudCase = window.filteredFraudCases.find((c) => {
       return c.playerId === playerId && c.type === type;
     });
     
-    if (fraudCase && !selectedCasesArray.includes(fraudCase)) {
+    if (fraudCase && !selectedCasesArray.some(existing => 
+      existing.playerId === fraudCase.playerId && 
+      existing.type === fraudCase.type &&
+      JSON.stringify(existing.cashiers) === JSON.stringify(fraudCase.cashiers)
+    )) {
       selectedCasesArray.push(fraudCase);
     }
   });
   
-  console.log('[Export] Выбрано случаев:', selectedCasesArray.length);
+  console.log('[Export] Выбрано чекбоксами:', selectedCasesArray.length, 'кейсов');
   return selectedCasesArray;
 }
 

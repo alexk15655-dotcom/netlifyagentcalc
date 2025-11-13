@@ -125,11 +125,12 @@ async function loadResults() {
   });
   
   if (data.fgSummary && data.fgSummary.length > 0) {
-    renderTable(data.fgSummary, 'fgSummaryTable');
+    renderFGSummaryTable(data.fgSummary, 'fgSummaryTable');
   }
   
+  // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Используем правильный рендеринг для калькуляции
   if (data.grouped && data.grouped.length > 0) {
-    renderTable(data.grouped, 'processedTable');
+    renderCalculationTable(data.grouped, 'processedTable');
   }
   
   if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
@@ -137,16 +138,34 @@ async function loadResults() {
   }
 }
 
-function renderTable(data, tableId) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
+// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Специализированный рендеринг для калькуляции
+function renderCalculationTable(data, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
   
-  table.innerHTML = '';
+  container.innerHTML = '';
   
-  const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
+  if (!data || data.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-text">Нет данных для отображения</div>
+      </div>
+    `;
+    return;
+  }
   
-  const headers = Object.keys(data[0]).filter(key => !key.startsWith('_'));
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-wrapper';
+  
+  const table = document.createElement('table');
+  table.className = 'data-table';
+  
+  // Заголовки
+  const headers = Object.keys(data[0]).filter(h => !h.startsWith('_'));
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  
   headers.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
@@ -155,10 +174,8 @@ function renderTable(data, tableId) {
     headerRow.appendChild(th);
   });
   
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-  
-  const tbody = document.createElement('tbody');
+  // Данные
+  const tbody = table.createTBody();
   data.forEach(row => {
     const tr = document.createElement('tr');
     
@@ -176,18 +193,7 @@ function renderTable(data, tableId) {
         const td = document.createElement('td');
         let value = row[header];
         
-        // ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 3: Сокращение длинного списка касс
-        if (header === 'Кассы' && typeof value === 'string' && value.length > 100) {
-          const cashiers = value.split(', ');
-          if (cashiers.length > 3) {
-            const preview = cashiers.slice(0, 3).join(', ');
-            const remaining = cashiers.length - 3;
-            td.innerHTML = `${preview} <span style="color:#999; cursor:help;" title="${value}">...и ещё ${remaining}</span>`;
-            td.dataset.fullValue = value; // Сохраняем полное значение для экспорта
-          } else {
-            td.textContent = value;
-          }
-        } else if (typeof value === 'number') {
+        if (typeof value === 'number') {
           td.textContent = formatNumber(value);
           td.className = value >= 0 ? 'num-positive' : 'num-negative';
         } else {
@@ -197,6 +203,64 @@ function renderTable(data, tableId) {
         tr.appendChild(td);
       });
     }
+    
+    tbody.appendChild(tr);
+  });
+  
+  wrapper.appendChild(table);
+  container.appendChild(wrapper);
+}
+
+// Рендеринг сводки ФГ
+function renderFGSummaryTable(data, tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  
+  table.innerHTML = '';
+  
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  
+  const headers = Object.keys(data[0]).filter(key => !key.startsWith('_') && key !== 'Export');
+  headers.forEach((header, index) => {
+    const th = document.createElement('th');
+    th.textContent = header;
+    th.dataset.column = index;
+    th.addEventListener('click', () => sortTable(table, index));
+    headerRow.appendChild(th);
+  });
+  
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  
+  const tbody = document.createElement('tbody');
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+    
+    headers.forEach(header => {
+      const td = document.createElement('td');
+      let value = row[header];
+      
+      // Компактное отображение касс
+      if (header === 'Кассы' && typeof value === 'string' && value.length > 100) {
+        const cashiers = value.split(', ');
+        if (cashiers.length > 3) {
+          const preview = cashiers.slice(0, 3).join(', ');
+          const remaining = cashiers.length - 3;
+          td.innerHTML = `${preview} <span style="color:#999; cursor:help;" title="${value}">...и ещё ${remaining}</span>`;
+          td.dataset.fullValue = value;
+        } else {
+          td.textContent = value;
+        }
+      } else if (typeof value === 'number') {
+        td.textContent = formatNumber(value);
+        td.className = value >= 0 ? 'num-positive' : 'num-negative';
+      } else {
+        td.textContent = value || '';
+      }
+      
+      tr.appendChild(td);
+    });
     
     tbody.appendChild(tr);
   });
@@ -340,7 +404,6 @@ function renderFraudFlat(cases, containerId) {
   });
 }
 
-// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 1: Новая группировка ФГ → Касса → Игрок
 function renderFraudGroupedBySeverity(cases, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -357,7 +420,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
     return;
   }
   
-  // Группировка: Severity → ФГ → Касса → Игроки
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   cases.forEach(c => {
@@ -378,7 +440,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
         };
       }
       
-      // Добавляем игрока в кассу
       const existingPlayer = grouped[severity][agent][cashierId].players.find(p => 
         p.playerId === c.playerId && p.type === c.type
       );
@@ -426,7 +487,6 @@ function renderFraudGroupedBySeverity(cases, containerId) {
         cashierHeader.textContent = `Касса ${cashierId} (${cashierData.players.length})`;
         container.appendChild(cashierHeader);
         
-        // Сортируем игроков по типу фрода для читаемости
         const sortedPlayers = cashierData.players.sort((a, b) => {
           const typeOrder = {
             'HIGH_WITHDRAWALS': 0,
