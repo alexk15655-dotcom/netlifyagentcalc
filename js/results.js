@@ -129,7 +129,7 @@ async function loadResults() {
   }
   
   if (data.grouped && data.grouped.length > 0) {
-    renderGroupedTable(data.grouped, 'processedTable');
+    renderTable(data.grouped, 'processedTable');
   }
   
   if (data.fraudAnalysis && data.fraudAnalysis.length > 0) {
@@ -166,7 +166,7 @@ function renderTable(data, tableId) {
       tr.classList.add('separator-row');
       const td = document.createElement('td');
       td.colSpan = headers.length;
-      td.textContent = row[headers[0]] || '';
+      td.textContent = row._cashier || row[headers[0]] || '';
       tr.appendChild(td);
     } else {
       if (row._isFG) tr.classList.add('fg-row');
@@ -202,83 +202,6 @@ function renderTable(data, tableId) {
   });
   
   table.appendChild(tbody);
-}
-
-// ИСПРАВЛЕНИЕ ПРОБЛЕМЫ 2: Специализированный рендер для калькуляции
-function renderGroupedTable(data, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (!data || data.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <div class="empty-state-text">Нет данных для отображения</div>
-      </div>
-    `;
-    return;
-  }
-  
-  // Создаем обертку таблицы
-  const wrapper = document.createElement('div');
-  wrapper.className = 'table-wrapper';
-  
-  const table = document.createElement('table');
-  table.className = 'data-table';
-  
-  // Получаем заголовки (исключаем служебные поля)
-  const allHeaders = Object.keys(data[0]).filter(h => !h.startsWith('_'));
-  
-  // Заголовки таблицы
-  const thead = table.createTHead();
-  const headerRow = thead.insertRow();
-  
-  allHeaders.forEach((header, index) => {
-    const th = document.createElement('th');
-    th.textContent = header;
-    th.dataset.column = index;
-    th.addEventListener('click', () => sortTable(table, index));
-    headerRow.appendChild(th);
-  });
-  
-  // Тело таблицы
-  const tbody = table.createTBody();
-  
-  data.forEach(row => {
-    const tr = tbody.insertRow();
-    
-    if (row._separator) {
-      tr.classList.add('separator-row');
-      const td = tr.insertCell();
-      td.colSpan = allHeaders.length;
-      td.textContent = row._cashier || row[allHeaders[0]] || '';
-    } else {
-      if (row._isFG) tr.classList.add('fg-row');
-      if (row._isOverall) tr.classList.add('overall-row');
-      
-      allHeaders.forEach(header => {
-        const td = tr.insertCell();
-        const value = row[header];
-        
-        if (typeof value === 'number') {
-          td.textContent = formatNumber(value);
-          
-          if (header === 'Профит' || header.includes('Проф')) {
-            td.className = value >= 0 ? 'num-positive' : 'num-negative';
-          }
-        } else {
-          td.textContent = value || '';
-        }
-      });
-    }
-  });
-  
-  wrapper.appendChild(table);
-  container.appendChild(wrapper);
-  
-  console.log('[Results] Калькуляция отрендерена:', data.length, 'строк');
 }
 
 function sortTable(table, columnIndex) {
