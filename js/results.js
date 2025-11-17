@@ -21,35 +21,26 @@ const defaultColumnSettings = {
     'Кол-во касс': true
   },
   calculation: {
-    'ID': true,
-    'Имя': true,
-    'Деп. $': true,
-    'Выв. $': true,
-    '№ Деп': true,
-    '№ Выв': true,
+    'Номер игрока': true,
+    'Игрок': true,
+    'Сумма пополнений': true,
+    'Сумма вывода': true,
+    'Сумма пополнений (в валюте админа по курсу текущего дня)': true,
+    'Сумма вывода (в валюте админа по курсу текущего дня)': true,
+    'Количество пополнений': true,
+    'Количество выводов': true,
     'Касса': true,
-    'Ком.': true,
-    'Ср.Д': true,
-    'Ср.В': true,
-    'Проф.': true,
-    'Похожие': true
+    'Комиссия': true,
+    'Средний депозит': true,
+    'Средний вывод': true,
+    'Профит': true,
+    'Похожие имена': true,
+    // Скрытые по умолчанию
+    'Комиссия агента': false,
+    'Махинации с платежами': false,
+    'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
+    'Комиссия агента (в валюте админа по курсу текущего дня)': false
   }
-};
-
-// Маппинг старых названий в короткие
-const headerShortMap = {
-  'Номер игрока': 'ID',
-  'Игрок': 'Имя',
-  'Сумма пополнений (в валюте админа по курсу текущего дня)': 'Деп. $',
-  'Сумма вывода (в валюте админа по курсу текущего дня)': 'Выв. $',
-  'Количество пополнений': '№ Деп',
-  'Количество выводов': '№ Выв',
-  'Касса': 'Касса',
-  'Комиссия': 'Ком.',
-  'Средний депозит': 'Ср.Д',
-  'Средний вывод': 'Ср.В',
-  'Профит': 'Проф.',
-  'Похожие имена': 'Похожие'
 };
 
 // Загрузка настроек из sessionStorage
@@ -57,7 +48,9 @@ function loadColumnSettings(type) {
   const saved = sessionStorage.getItem(`columnSettings_${type}`);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Мержим с дефолтными настройками чтобы новые столбцы появлялись
+      return { ...defaultColumnSettings[type], ...parsed };
     } catch (e) {
       console.error('[Results] Ошибка парсинга настроек столбцов:', e);
     }
@@ -331,18 +324,8 @@ function renderCalculationTableVirtualized(data, containerId) {
   const allHeaders = Object.keys(firstDataRow).filter(h => !h.startsWith('_'));
   const columnSettings = loadColumnSettings('calculation');
   
-  // Применяем маппинг старых названий в короткие
-  const mappedHeaders = [];
-  const headerMapping = {};
-  
-  allHeaders.forEach(oldHeader => {
-    const shortHeader = headerShortMap[oldHeader] || oldHeader;
-    headerMapping[shortHeader] = oldHeader;
-    
-    if (columnSettings[shortHeader] !== false) {
-      mappedHeaders.push(shortHeader);
-    }
-  });
+  // Фильтруем заголовки по настройкам
+  const headers = allHeaders.filter(h => columnSettings[h] !== false);
   
   const thead = table.createTHead();
   thead.style.position = 'sticky';
@@ -352,11 +335,10 @@ function renderCalculationTableVirtualized(data, containerId) {
   
   const headerRow = thead.insertRow();
   
-  mappedHeaders.forEach((header, index) => {
+  headers.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
     th.dataset.column = index;
-    th.title = headerMapping[header] || header;
     headerRow.appendChild(th);
   });
   
@@ -373,16 +355,16 @@ function renderCalculationTableVirtualized(data, containerId) {
       if (row._separator) {
         tr.className = 'separator-row';
         const td = tr.insertCell();
-        td.colSpan = mappedHeaders.length;
+        td.colSpan = headers.length;
         td.textContent = row._cashier || '';
       } else {
         if (row._isFG) tr.className = 'fg-row';
         if (row._isOverall) tr.className = 'overall-row';
         
         // Сохраняем номер игрока для поиска
-        const playerIdOrig = allHeaders.find(h => h.includes('игрока') || h.includes('Номер'));
-        if (playerIdOrig) {
-          tr.dataset.playerId = row[playerIdOrig] || '';
+        const playerIdKey = allHeaders.find(h => h.includes('игрока') || h.includes('Номер'));
+        if (playerIdKey) {
+          tr.dataset.playerId = row[playerIdKey] || '';
         }
         
         // Сохраняем похожие имена для поиска
@@ -390,13 +372,12 @@ function renderCalculationTableVirtualized(data, containerId) {
           tr.dataset.similarNames = row['Похожие имена'];
         }
         
-        mappedHeaders.forEach(shortHeader => {
+        headers.forEach(header => {
           const td = tr.insertCell();
-          const origHeader = headerMapping[shortHeader];
-          let value = row[origHeader];
+          let value = row[header];
           
           // Обработка "Похожие имена" с сокращением
-          if (origHeader === 'Похожие имена' && value) {
+          if (header === 'Похожие имена' && value) {
             const fullValue = value;
             const parts = String(value).split(', ');
             
@@ -410,7 +391,7 @@ function renderCalculationTableVirtualized(data, containerId) {
             }
           } else if (typeof value === 'number') {
             td.textContent = formatNumber(value);
-            if (origHeader.includes('Профит') || origHeader.includes('профит')) {
+            if (header.includes('Профит') || header.includes('профит')) {
               td.className = value >= 0 ? 'num-positive' : 'num-negative';
             }
           } else {
@@ -556,16 +537,30 @@ function renderFGSummaryTable(data, tableId) {
       const td = document.createElement('td');
       let value = row[header];
       
-      // Сокращаем список касс если > 1
+      // ИСПРАВЛЕНИЕ: Сокращаем список касс корректно
       if (header === 'Кассы' && typeof value === 'string') {
         const cashiers = value.split(', ');
-        if (cashiers.length > 1) {
-          const preview = cashiers[0];
-          const remaining = cashiers.length - 1;
-          td.innerHTML = `${preview} <span class="truncated-hint" title="${value}">...и ещё ${remaining}</span>`;
-          td.dataset.fullValue = value;
+        const uniqueCashiers = [];
+        const seenIds = new Set();
+        
+        // Убираем дубликаты по ID кассы
+        cashiers.forEach(cashier => {
+          const match = cashier.match(/^(\d+)/);
+          const id = match ? match[1] : cashier;
+          
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            uniqueCashiers.push(cashier);
+          }
+        });
+        
+        if (uniqueCashiers.length > 1) {
+          const preview = uniqueCashiers[0];
+          const remaining = uniqueCashiers.length - 1;
+          td.innerHTML = `${preview} <span class="truncated-hint" title="${uniqueCashiers.join(', ')}">...и ещё ${remaining}</span>`;
+          td.dataset.fullValue = uniqueCashiers.join(', ');
         } else {
-          td.textContent = value;
+          td.textContent = uniqueCashiers[0] || value;
         }
       } else if (typeof value === 'number') {
         td.textContent = formatNumber(value);

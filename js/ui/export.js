@@ -1,21 +1,5 @@
 'use strict';
 
-// Маппинг коротких названий обратно в оригинальные для экспорта
-const headerExportMap = {
-  'ID': 'Номер игрока',
-  'Имя': 'Игрок',
-  'Деп. $': 'Сумма пополнений (в валюте админа по курсу текущего дня)',
-  'Выв. $': 'Сумма вывода (в валюте админа по курсу текущего дня)',
-  '№ Деп': 'Количество пополнений',
-  '№ Выв': 'Количество выводов',
-  'Касса': 'Касса',
-  'Ком.': 'Комиссия',
-  'Ср.Д': 'Средний депозит',
-  'Ср.В': 'Средний вывод',
-  'Проф.': 'Профит',
-  'Похожие': 'Похожие имена'
-};
-
 function exportCSV(tabName) {
   const results = window.cashierCheckupResults;
   if (!results) {
@@ -35,22 +19,7 @@ function exportCSV(tabName) {
       data = data.map(row => {
         const filtered = {};
         Object.keys(row).forEach(key => {
-          if (key.startsWith('_')) return;
-          
-          // Ищем короткое название
-          let shortName = null;
-          for (const [short, orig] of Object.entries(headerExportMap)) {
-            if (orig === key) {
-              shortName = short;
-              break;
-            }
-          }
-          
-          // Если нашли короткое название и оно не скрыто - добавляем с оригинальным названием
-          if (shortName && calcSettings[shortName] !== false) {
-            filtered[key] = row[key];
-          } else if (!shortName) {
-            // Если маппинга нет - оставляем как есть
+          if (!key.startsWith('_') && calcSettings[key] !== false) {
             filtered[key] = row[key];
           }
         });
