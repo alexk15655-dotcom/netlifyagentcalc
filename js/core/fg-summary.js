@@ -18,7 +18,7 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
   const headers = Object.keys(fgRows[0]);
   const cashierKey = fgRows[0]._cashierColumn;
   
-  // ИСПРАВЛЕНИЕ: Фильтруем prepayData от строк "Итого"
+  // Фильтруем prepayData от строк "Итого"
   let cleanPrepayData = [];
   if (prepayData && prepayData.length > 0) {
     cleanPrepayData = prepayData.filter(row => {
@@ -53,7 +53,8 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
       fgGroups[fgName] = {
         fgName: fgName,
         cashiers: [],
-        cashierIds: [],
+        cashierIds: new Set(),
+        uniqueCashierNames: new Set(),
         totalDeposits: 0,
         totalWithdrawals: 0,
         totalCommission: 0,
@@ -68,10 +69,14 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
     const group = fgGroups[fgName];
     
     const fullCashierName = String(fgRow[cashierKey] || cashierInfo).trim();
-    group.cashiers.push(fullCashierName);
-    
     const cashierId = extractCashierId(fullCashierName);
-    group.cashierIds.push(cashierId);
+    
+    // Добавляем только уникальные ID
+    if (!group.cashierIds.has(cashierId)) {
+      group.cashierIds.add(cashierId);
+      group.uniqueCashierNames.add(fullCashierName);
+      group.cashiers.push(fullCashierName);
+    }
     
     const parseNum = (val) => parseFloat(String(val).replace(/[\s,]/g, '')) || 0;
     
@@ -105,13 +110,11 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
   const summary = [];
   
   Object.values(fgGroups).forEach(group => {
-    // ИСПРАВЛЕНИЕ: Ищем prepayment, показываем 0 если не найдено
     let prepaidAmount = 0;
     
     if (cleanPrepayData.length > 0) {
       const prepayRow = cleanPrepayData.find(p => {
         const prepayFG = String(p['Фин. группа'] || p['Финансовая группа'] || '').trim();
-        // Точное совпадение или вхождение
         return prepayFG.toLowerCase() === group.fgName.toLowerCase() ||
                prepayFG.toLowerCase().includes(group.fgName.toLowerCase()) ||
                group.fgName.toLowerCase().includes(prepayFG.toLowerCase());
@@ -129,7 +132,7 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
       }
     }
     
-    const playerCount = countPlayersForCashiers(groupedData, group.cashierIds, cashierKey);
+    const playerCount = countPlayersForCashiers(groupedData, Array.from(group.cashierIds), cashierKey);
     
     const depositToWithdrawalPercent = group.totalWithdrawals > 0 ?
       (group.totalDeposits / group.totalWithdrawals * 100) : 0;
@@ -143,7 +146,7 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
     const avgWithdrawal = group.withdrawals.length > 0 ?
       group.withdrawals.reduce((a, b) => a + b, 0) / group.withdrawals.length : 0;
     
-    const exportString = `${group.cashierIds[0] || ''},${round2(group.totalDeposits)},${round2(prepaidAmount)},${playerCount}`;
+    const exportString = `${Array.from(group.cashierIds)[0] || ''},${round2(group.totalDeposits)},${round2(prepaidAmount)},${playerCount}`;
     
     summary.push({
       'ФГ': group.fgName,
@@ -158,7 +161,7 @@ function createFGSummary(groupedData, prepayData, cashierToAgent = {}) {
       'Комиссия $': round2(group.totalCommission),
       'Ср. деп. $': round2(avgDeposit),
       'Ср. выв.($)': round2(avgWithdrawal),
-      'Кол-во касс': group.cashiers.length,
+      'Кол-во касс': group.cashierIds.size,
       'Export': exportString
     });
   });

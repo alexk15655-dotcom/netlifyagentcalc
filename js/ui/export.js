@@ -1,5 +1,21 @@
 'use strict';
 
+// Маппинг коротких названий обратно в оригинальные для экспорта
+const headerExportMap = {
+  'ID': 'Номер игрока',
+  'Имя': 'Игрок',
+  'Деп. $': 'Сумма пополнений (в валюте админа по курсу текущего дня)',
+  'Выв. $': 'Сумма вывода (в валюте админа по курсу текущего дня)',
+  '№ Деп': 'Количество пополнений',
+  '№ Выв': 'Количество выводов',
+  'Касса': 'Касса',
+  'Ком.': 'Комиссия',
+  'Ср.Д': 'Средний депозит',
+  'Ср.В': 'Средний вывод',
+  'Проф.': 'Профит',
+  'Похожие': 'Похожие имена'
+};
+
 function exportCSV(tabName) {
   const results = window.cashierCheckupResults;
   if (!results) {
@@ -19,7 +35,22 @@ function exportCSV(tabName) {
       data = data.map(row => {
         const filtered = {};
         Object.keys(row).forEach(key => {
-          if (!key.startsWith('_') && calcSettings[key] !== false) {
+          if (key.startsWith('_')) return;
+          
+          // Ищем короткое название
+          let shortName = null;
+          for (const [short, orig] of Object.entries(headerExportMap)) {
+            if (orig === key) {
+              shortName = short;
+              break;
+            }
+          }
+          
+          // Если нашли короткое название и оно не скрыто - добавляем с оригинальным названием
+          if (shortName && calcSettings[shortName] !== false) {
+            filtered[key] = row[key];
+          } else if (!shortName) {
+            // Если маппинга нет - оставляем как есть
             filtered[key] = row[key];
           }
         });
@@ -110,7 +141,6 @@ function exportCSV(tabName) {
   console.log('[Export] Экспортировано строк:', cleanData.length);
 }
 
-// ИЗМЕНЕНО: Восстанавливаем полные значения для "Кассы" и "Похожие имена"
 function restoreFullValuesFromTable(originalData, tableId) {
   const table = document.getElementById(tableId);
   if (!table) return originalData;
@@ -126,7 +156,6 @@ function restoreFullValuesFromTable(originalData, tableId) {
       headers.forEach((header, colIndex) => {
         const cell = domRow.cells[colIndex];
         if (cell && cell.dataset.fullValue) {
-          // Восстанавливаем полное значение из data-full-value
           newRow[header] = cell.dataset.fullValue;
         }
       });

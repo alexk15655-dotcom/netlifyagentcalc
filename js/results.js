@@ -18,32 +18,38 @@ const defaultColumnSettings = {
     'Комиссия $': true,
     'Ср. деп. $': true,
     'Ср. выв.($)': true,
-    'Кол-во касс': true,
-    // Устаревшие столбцы - выключены по умолчанию
-    'Комиссия агента': false,
-    'Махинации с платежами': false,
-    'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
-    'Комиссия агента (в валюте админа по курсу текущего дня)': false
+    'Кол-во касс': true
   },
   calculation: {
-    'Номер игрока': true,
-    'Игрок': true,
-    'Сумма пополнений (в валюте админа по курсу текущего дня)': true,
-    'Сумма вывода (в валюте админа по курсу текущего дня)': true,
-    'Количество пополнений': true,
-    'Количество выводов': true,
+    'ID': true,
+    'Имя': true,
+    'Деп. $': true,
+    'Выв. $': true,
+    '№ Деп': true,
+    '№ Выв': true,
     'Касса': true,
-    'Комиссия': true,
-    'Средний депозит': true,
-    'Средний вывод': true,
-    'Профит': true,
-    'Похожие имена': true,
-    // Устаревшие столбцы - выключены по умолчанию
-    'Комиссия агента': false,
-    'Махинации с платежами': false,
-    'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
-    'Комиссия агента (в валюте админа по курсу текущего дня)': false
+    'Ком.': true,
+    'Ср.Д': true,
+    'Ср.В': true,
+    'Проф.': true,
+    'Похожие': true
   }
+};
+
+// Маппинг старых названий в короткие
+const headerShortMap = {
+  'Номер игрока': 'ID',
+  'Игрок': 'Имя',
+  'Сумма пополнений (в валюте админа по курсу текущего дня)': 'Деп. $',
+  'Сумма вывода (в валюте админа по курсу текущего дня)': 'Выв. $',
+  'Количество пополнений': '№ Деп',
+  'Количество выводов': '№ Выв',
+  'Касса': 'Касса',
+  'Комиссия': 'Ком.',
+  'Средний депозит': 'Ср.Д',
+  'Средний вывод': 'Ср.В',
+  'Профит': 'Проф.',
+  'Похожие имена': 'Похожие'
 };
 
 // Загрузка настроек из sessionStorage
@@ -324,7 +330,19 @@ function renderCalculationTableVirtualized(data, containerId) {
   
   const allHeaders = Object.keys(firstDataRow).filter(h => !h.startsWith('_'));
   const columnSettings = loadColumnSettings('calculation');
-  const headers = allHeaders.filter(h => columnSettings[h] !== false);
+  
+  // Применяем маппинг старых названий в короткие
+  const mappedHeaders = [];
+  const headerMapping = {};
+  
+  allHeaders.forEach(oldHeader => {
+    const shortHeader = headerShortMap[oldHeader] || oldHeader;
+    headerMapping[shortHeader] = oldHeader;
+    
+    if (columnSettings[shortHeader] !== false) {
+      mappedHeaders.push(shortHeader);
+    }
+  });
   
   const thead = table.createTHead();
   thead.style.position = 'sticky';
@@ -334,10 +352,11 @@ function renderCalculationTableVirtualized(data, containerId) {
   
   const headerRow = thead.insertRow();
   
-  headers.forEach((header, index) => {
+  mappedHeaders.forEach((header, index) => {
     const th = document.createElement('th');
     th.textContent = header;
     th.dataset.column = index;
+    th.title = headerMapping[header] || header;
     headerRow.appendChild(th);
   });
   
@@ -354,16 +373,16 @@ function renderCalculationTableVirtualized(data, containerId) {
       if (row._separator) {
         tr.className = 'separator-row';
         const td = tr.insertCell();
-        td.colSpan = headers.length;
+        td.colSpan = mappedHeaders.length;
         td.textContent = row._cashier || '';
       } else {
         if (row._isFG) tr.className = 'fg-row';
         if (row._isOverall) tr.className = 'overall-row';
         
         // Сохраняем номер игрока для поиска
-        const playerIdKey = allHeaders.find(h => h.includes('игрока') || h.includes('Номер'));
-        if (playerIdKey) {
-          tr.dataset.playerId = row[playerIdKey] || '';
+        const playerIdOrig = allHeaders.find(h => h.includes('игрока') || h.includes('Номер'));
+        if (playerIdOrig) {
+          tr.dataset.playerId = row[playerIdOrig] || '';
         }
         
         // Сохраняем похожие имена для поиска
@@ -371,12 +390,13 @@ function renderCalculationTableVirtualized(data, containerId) {
           tr.dataset.similarNames = row['Похожие имена'];
         }
         
-        headers.forEach(header => {
+        mappedHeaders.forEach(shortHeader => {
           const td = tr.insertCell();
-          let value = row[header];
+          const origHeader = headerMapping[shortHeader];
+          let value = row[origHeader];
           
           // Обработка "Похожие имена" с сокращением
-          if (header === 'Похожие имена' && value) {
+          if (origHeader === 'Похожие имена' && value) {
             const fullValue = value;
             const parts = String(value).split(', ');
             
@@ -390,7 +410,7 @@ function renderCalculationTableVirtualized(data, containerId) {
             }
           } else if (typeof value === 'number') {
             td.textContent = formatNumber(value);
-            if (header.includes('Профит') || header.includes('профит')) {
+            if (origHeader.includes('Профит') || origHeader.includes('профит')) {
               td.className = value >= 0 ? 'num-positive' : 'num-negative';
             }
           } else {
@@ -443,7 +463,7 @@ function renderCalculationTableVirtualized(data, containerId) {
   console.log('[Results] Калькуляция: первый чанк отрендерен, всего строк:', data.length);
 }
 
-// Фильтрация строк по номеру игрока
+// Фильтрация строк по номеру игрока - ПОКАЗЫВАТЬ ТОЛЬКО СОВПАДЕНИЯ
 function filterPlayerRows(searchTerm) {
   const table = document.getElementById('calculationTable');
   if (!table) return;
@@ -469,13 +489,19 @@ function filterPlayerRows(searchTerm) {
   
   const searchLower = searchTerm.toLowerCase();
   let foundCount = 0;
+  let lastVisibleSeparator = null;
   
   rows.forEach(row => {
-    // Не фильтруем сепараторы, ФГ и Итого
-    if (row.classList.contains('separator-row') || 
-        row.classList.contains('fg-row') || 
-        row.classList.contains('overall-row')) {
-      row.style.display = '';
+    // Сепараторы скрываем по умолчанию, покажем только если есть совпадения в секции
+    if (row.classList.contains('separator-row')) {
+      row.style.display = 'none';
+      lastVisibleSeparator = row;
+      return;
+    }
+    
+    // ФГ и Итого всегда скрываем при поиске
+    if (row.classList.contains('fg-row') || row.classList.contains('overall-row')) {
+      row.style.display = 'none';
       return;
     }
     
@@ -485,6 +511,11 @@ function filterPlayerRows(searchTerm) {
     if (playerId.includes(searchLower) || similarNames.includes(searchLower)) {
       row.style.display = '';
       foundCount++;
+      
+      // Показываем сепаратор секции если есть совпадение
+      if (lastVisibleSeparator) {
+        lastVisibleSeparator.style.display = '';
+      }
     } else {
       row.style.display = 'none';
     }
@@ -525,7 +556,7 @@ function renderFGSummaryTable(data, tableId) {
       const td = document.createElement('td');
       let value = row[header];
       
-      // ИЗМЕНЕНИЕ: Сокращаем список касс если > 1
+      // Сокращаем список касс если > 1
       if (header === 'Кассы' && typeof value === 'string') {
         const cashiers = value.split(', ');
         if (cashiers.length > 1) {
