@@ -39,7 +39,8 @@ const defaultColumnSettings = {
     'Комиссия агента': false,
     'Махинации с платежами': false,
     'Махинации с платежами (в валюте админа по курсу текущего дня)': false,
-    'Комиссия агента (в валюте админа по курсу текущего дня)': false
+    'Комиссия агента(в валюте админа по курсу текущего дня)': false
+
   }
 };
 
@@ -537,13 +538,24 @@ function renderFGSummaryTable(data, tableId) {
       const td = document.createElement('td');
       let value = row[header];
       
-      // ИСПРАВЛЕНИЕ: Сокращаем список касс корректно
+      // ИСПРАВЛЕНИЕ: Сокращаем список касс корректно с разбором пар
       if (header === 'Кассы' && typeof value === 'string') {
-        const cashiers = value.split(', ');
+        // Разбираем пары "ID, Адрес"
+        const parts = value.split(', ');
+        const cashiers = [];
+        
+        for (let i = 0; i < parts.length; i += 2) {
+          const id = parts[i];
+          const name = parts[i + 1] || '';
+          if (id) {
+            cashiers.push(`${id}${name ? ', ' + name : ''}`);
+          }
+        }
+        
+        // Убираем дубликаты по ID
         const uniqueCashiers = [];
         const seenIds = new Set();
         
-        // Убираем дубликаты по ID кассы
         cashiers.forEach(cashier => {
           const match = cashier.match(/^(\d+)/);
           const id = match ? match[1] : cashier;
