@@ -68,7 +68,7 @@ function processData(data, config) {
   return { processed, cashierToAgent };
 }
 
-// ПУНКТ 5: Функция поиска похожих имен
+// ИЗМЕНЕНО: Поиск похожих имен с полным списком и знаком минус для убытка
 function findSimilarNamesInData(data, headers, cashierKey) {
   const idKey = headers.find(h => h.includes('игрока') || h.includes('Номер'));
   const nameKey = headers.find(h => h === 'Игрок' || h.includes('Имя'));
@@ -122,15 +122,15 @@ function findSimilarNamesInData(data, headers, cashierKey) {
         }
       });
       
-      // Сортировка по убыточности
+      // Сортировка по убыточности (от самого минусового)
       similar.sort((a, b) => a.balance - b.balance);
       
-      // Форматируем результат
+      // ИЗМЕНЕНО: Сохраняем ВСЕ найденные похожие имена
       if (similar.length > 0) {
-        const top3 = similar.slice(0, 3);
-        const formatted = top3.map(s => {
-          const balanceStr = s.balance < 0 ? `(${Math.abs(Math.round(s.balance))}$)` : '';
-          return `${s.id} ${balanceStr}`.trim();
+        const formatted = similar.map(s => {
+          // Формат: "123456 (-150$)" для убыточных
+          const balanceStr = s.balance < 0 ? ` (-${Math.abs(Math.round(s.balance))}$)` : '';
+          return `${s.id}${balanceStr}`.trim();
         }).join(', ');
         
         data[idx]['Похожие имена'] = formatted;

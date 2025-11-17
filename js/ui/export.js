@@ -13,19 +13,46 @@ function exportCSV(tabName) {
   switch (tabName) {
     case 'processed':
       data = results.grouped.filter(row => !row._separator);
+      
+      // Применяем фильтр столбцов
+      const calcSettings = loadColumnSettings('calculation');
+      data = data.map(row => {
+        const filtered = {};
+        Object.keys(row).forEach(key => {
+          if (!key.startsWith('_') && calcSettings[key] !== false) {
+            filtered[key] = row[key];
+          }
+        });
+        return filtered;
+      });
+      
       filename = 'processed_data';
       break;
+      
     case 'fgSummary':
       data = restoreFullValuesFromTable(results.fgSummary, 'fgSummaryTable');
+      
+      // Применяем фильтр столбцов
+      const fgSettings = loadColumnSettings('fgSummary');
+      data = data.map(row => {
+        const filtered = {};
+        Object.keys(row).forEach(key => {
+          if (!key.startsWith('_') && key !== 'Export' && fgSettings[key] !== false) {
+            filtered[key] = row[key];
+          }
+        });
+        return filtered;
+      });
+      
       filename = 'fg_summary';
       break;
+      
     case 'fraud':
       console.log('[Export] Начинаем экспорт фрода');
       console.log('[Export] selectedCases (Map):', window.selectedCases);
       console.log('[Export] selectedCases.size:', window.selectedCases?.size);
       console.log('[Export] selectedCases keys:', Array.from(window.selectedCases?.keys() || []));
       
-      // КРИТИЧНО: Экспортируем только выбранные чекбоксами
       const casesToExport = window.selectedCases && window.selectedCases.size > 0
         ? getSelectedFraudCases()
         : window.filteredFraudCases || results.fraudAnalysis;
@@ -40,6 +67,7 @@ function exportCSV(tabName) {
       data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
+      
     default:
       alert('Неизвестный тип данных');
       return;
@@ -108,7 +136,6 @@ function restoreFullValuesFromTable(originalData, tableId) {
   return dataWithFullValues;
 }
 
-// ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Используем selectedCases Map напрямую
 function getSelectedFraudCases() {
   console.log('[Export] getSelectedFraudCases() начало');
   
@@ -122,7 +149,6 @@ function getSelectedFraudCases() {
   
   const selectedCasesArray = [];
   
-  // Воспроизводим ТОЧНО ТОТ ЖЕ порядок, что и в рендеринге
   const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
   
   window.filteredFraudCases.forEach(c => {
@@ -155,7 +181,6 @@ function getSelectedFraudCases() {
   
   let currentIndex = 0;
   
-  // Проходим в ТОМ ЖЕ порядке что и renderFraudGroupedBySeverity
   ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
     const agents = grouped[severity];
     const agentNames = Object.keys(agents).sort();
@@ -180,7 +205,6 @@ function getSelectedFraudCases() {
         });
         
         sortedPlayers.forEach(fraudCase => {
-          // Проверяем, выбран ли этот индекс
           if (selectedIndices.has(currentIndex)) {
             console.log(`[Export] Добавляем кейс с индексом ${currentIndex}:`, fraudCase.playerId, fraudCase.type);
             selectedCasesArray.push(fraudCase);
@@ -250,4 +274,19 @@ function extractCashierId(cashierStr) {
 function getTimestamp() {
   const now = new Date();
   return now.toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
+}
+
+// Загрузка настроек столбцов (копия из results.js для доступа)
+function loadColumnSettings(type) {
+  const saved = sessionStorage.getItem(`columnSettings_${type}`);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error('[Export] Ошибка парсинга настроек столбцов:', e);
+    }
+  }
+  
+  // Возвращаем дефолт (все включены)
+  return {};
 }
