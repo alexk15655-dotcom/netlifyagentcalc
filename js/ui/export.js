@@ -13,16 +13,61 @@ function exportCSV(tabName) {
   switch (tabName) {
     case 'processed':
       data = results.grouped.filter(row => !row._separator);
+      
+      // Применяем фильтр столбцов
+      const calcSettings = loadColumnSettings('calculation');
+      data = data.map(row => {
+        const filtered = {};
+        Object.keys(row).forEach(key => {
+          if (!key.startsWith('_') && calcSettings[key] !== false) {
+            filtered[key] = row[key];
+          }
+        });
+        return filtered;
+      });
+      
       filename = 'processed_data';
       break;
+      
     case 'fgSummary':
-      data = results.fgSummary;
+      data = restoreFullValuesFromTable(results.fgSummary, 'fgSummaryTable');
+      
+      // Применяем фильтр столбцов
+      const fgSettings = loadColumnSettings('fgSummary');
+      data = data.map(row => {
+        const filtered = {};
+        Object.keys(row).forEach(key => {
+          if (!key.startsWith('_') && key !== 'Export' && fgSettings[key] !== false) {
+            filtered[key] = row[key];
+          }
+        });
+        return filtered;
+      });
+      
       filename = 'fg_summary';
       break;
+      
     case 'fraud':
-      data = formatFraudForExport(results.fraudAnalysis);
+      console.log('[Export] Начинаем экспорт фрода');
+      console.log('[Export] selectedCases (Map):', window.selectedCases);
+      console.log('[Export] selectedCases.size:', window.selectedCases?.size);
+      console.log('[Export] selectedCases keys:', Array.from(window.selectedCases?.keys() || []));
+      
+      const casesToExport = window.selectedCases && window.selectedCases.size > 0
+        ? getSelectedFraudCases()
+        : window.filteredFraudCases || results.fraudAnalysis;
+      
+      console.log('[Export] Будет экспортировано кейсов:', casesToExport.length);
+      
+      if (casesToExport.length === 0) {
+        alert('Нет данных для экспорта. Выберите кейсы чекбоксами или примените фильтры.');
+        return;
+      }
+      
+      data = formatFraudForExport(casesToExport);
       filename = 'fraud_analysis';
       break;
+      
     default:
       alert('Неизвестный тип данных');
       return;
@@ -62,7 +107,123 @@ function exportCSV(tabName) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   
-  console.log('[Export] Экспортировано:', cleanData.length, 'строк');
+  console.log('[Export] Экспортировано строк:', cleanData.length);
+}
+
+function restoreFullValuesFromTable(originalData, tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return originalData;
+  
+  const rows = table.querySelectorAll('tbody tr');
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+  
+  const dataWithFullValues = originalData.map((row, index) => {
+    const newRow = { ...row };
+    const domRow = rows[index];
+    
+    if (domRow) {
+      headers.forEach((header, colIndex) => {
+        const cell = domRow.cells[colIndex];
+        if (cell && cell.dataset.fullValue) {
+          newRow[header] = cell.dataset.fullValue;
+        }
+      });
+    }
+    
+    return newRow;
+  });
+  
+  return dataWithFullValues;
+}
+
+function getSelectedFraudCases() {
+  console.log('[Export] getSelectedFraudCases() начало');
+  
+  const selectedIndices = new Set(window.selectedCases.keys());
+  console.log('[Export] Выбранные индексы из Map:', Array.from(selectedIndices).sort((a,b) => a-b));
+  
+  if (selectedIndices.size === 0) {
+    console.warn('[Export] Нет выбранных индексов!');
+    return [];
+  }
+  
+  const selectedCasesArray = [];
+  
+  const grouped = { HIGH: {}, MEDIUM: {}, LOW: {} };
+  
+  window.filteredFraudCases.forEach(c => {
+    const severity = c.severity;
+    const agent = c.agentName || 'Неизвестный агент';
+    
+    if (!grouped[severity][agent]) {
+      grouped[severity][agent] = {};
+    }
+    
+    c.cashiers.forEach(cashierName => {
+      const cashierId = extractCashierIdFromName(cashierName);
+      
+      if (!grouped[severity][agent][cashierId]) {
+        grouped[severity][agent][cashierId] = {
+          name: cashierName,
+          players: []
+        };
+      }
+      
+      const existingPlayer = grouped[severity][agent][cashierId].players.find(p => 
+        p.playerId === c.playerId && p.type === c.type
+      );
+      
+      if (!existingPlayer) {
+        grouped[severity][agent][cashierId].players.push(c);
+      }
+    });
+  });
+  
+  let currentIndex = 0;
+  
+  ['HIGH', 'MEDIUM', 'LOW'].forEach(severity => {
+    const agents = grouped[severity];
+    const agentNames = Object.keys(agents).sort();
+    
+    agentNames.forEach(agent => {
+      const cashiers = agents[agent];
+      
+      Object.keys(cashiers).sort().forEach(cashierId => {
+        const cashierData = cashiers[cashierId];
+        
+        const sortedPlayers = cashierData.players.sort((a, b) => {
+          const typeOrder = {
+            'HIGH_WITHDRAWALS': 0,
+            'HIGH_BALANCED_FLOW': 1,
+            'AGENT_TAKEOVER': 2,
+            'AGENT_SELF_PLAY': 3,
+            'MULTI_ACCOUNTS': 4,
+            'EMPTY_ACCOUNTS': 5,
+            'TRASH_ACCOUNTS': 6
+          };
+          return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+        });
+        
+        sortedPlayers.forEach(fraudCase => {
+          if (selectedIndices.has(currentIndex)) {
+            console.log(`[Export] Добавляем кейс с индексом ${currentIndex}:`, fraudCase.playerId, fraudCase.type);
+            selectedCasesArray.push(fraudCase);
+          }
+          currentIndex++;
+        });
+      });
+    });
+  });
+  
+  console.log('[Export] Всего обработано индексов:', currentIndex);
+  console.log('[Export] Собрано выбранных кейсов:', selectedCasesArray.length);
+  
+  return selectedCasesArray;
+}
+
+function extractCashierIdFromName(cashierName) {
+  const match = String(cashierName).match(/^(\d+)[,\s]/);
+  return match ? match[1] : cashierName;
 }
 
 function formatFraudForExport(fraudCases) {
@@ -113,4 +274,19 @@ function extractCashierId(cashierStr) {
 function getTimestamp() {
   const now = new Date();
   return now.toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
+}
+
+// Загрузка настроек столбцов (копия из results.js для доступа)
+function loadColumnSettings(type) {
+  const saved = sessionStorage.getItem(`columnSettings_${type}`);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error('[Export] Ошибка парсинга настроек столбцов:', e);
+    }
+  }
+  
+  // Возвращаем дефолт (все включены)
+  return {};
 }

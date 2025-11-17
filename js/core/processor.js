@@ -1,30 +1,19 @@
 'use strict';
 
-/**
- * Обрабатывает данные: рассчитывает комиссии, профит
- * Портировано из processData() в .gs файле
- */
 function processData(data, config) {
-  const { depCommission, withCommission, cashierColumn } = config;
+  const { depCommission, withCommission, cashierColumn, findSimilarNames } = config;
   
-  // Определяем имена колонок
   const headers = Object.keys(data[0]);
   const cashierKey = headers[cashierColumn];
   
   console.log('[Processor] Обработка', data.length, 'строк');
-  console.log('[Processor] Всего колонок:', headers.length);
-  console.log('[Processor] Названия колонок:', headers);
-  console.log('[Processor] Выбран индекс кассы:', cashierColumn);
-  console.log('[Processor] Имя колонки кассы:', cashierKey);
+  console.log('[Processor] findSimilarNames:', findSimilarNames);
   
   if (!cashierKey) {
-    console.error('[Processor] ОШИБКА: Колонка кассы не найдена!');
-    console.error('[Processor] Возможно выбран неверный индекс или в CSV меньше колонок');
     throw new Error(`Колонка с индексом ${cashierColumn} не существует. Всего колонок: ${headers.length}`);
   }
   
   const processed = data.map((row, index) => {
-    // Парсим числовые значения
     const parseNum = (val) => {
       if (typeof val === 'number') return val;
       if (!val) return 0;
@@ -32,7 +21,6 @@ function processData(data, config) {
       return parseFloat(str) || 0;
     };
     
-    // Получаем значения (поддержка разных названий колонок)
     const depSumUsd = parseNum(
       row['Сумма пополнений (в валюте админа по курсу текущего дня)'] ||
       row['Сумма пополнений (в валюте админа)'] ||
@@ -48,7 +36,6 @@ function processData(data, config) {
     const depCount = parseNum(row['Количество пополнений'] || 0);
     const withCount = parseNum(row['Количество выводов'] || 0);
     
-    // Расчеты
     const depCommissionAmount = (depSumUsd * depCommission) / 100;
     const withCommissionAmount = (withSumUsd * withCommission) / 100;
     const totalCommission = depCommissionAmount + withCommissionAmount;
@@ -57,7 +44,6 @@ function processData(data, config) {
     const avgWith = withCount > 0 ? withSumUsd / withCount : 0;
     const profit = depSumUsd - withSumUsd - totalCommission;
     
-    // Возвращаем обогащенную строку
     return {
       ...row,
       '_index': index,
@@ -65,22 +51,129 @@ function processData(data, config) {
       'Комиссия': round2(totalCommission),
       'Средний депозит': round2(avgDep),
       'Средний вывод': round2(avgWith),
-      'Профит': round2(profit)
+      'Профит': round2(profit),
+      'Похожие имена': '' // заполнится позже
     };
   });
   
-  // Строим единый маппинг кассы → агент
   const cashierToAgent = buildCashierToAgentMapping(processed, headers, cashierKey);
   
-  console.log('[Processor] Построен маппинг:', Object.keys(cashierToAgent).length, 'записей');
+  // ПУНКТ 5: Поиск похожих имен, если включено
+  if (findSimilarNames) {
+    console.log('[Processor] Поиск похожих имен...');
+    findSimilarNamesInData(processed, headers, cashierKey);
+    console.log('[Processor] Поиск похожих имен завершен');
+  }
   
   return { processed, cashierToAgent };
 }
 
-/**
- * ИСПРАВЛЕНО: Строит маппинг касса → агент из строк ФГ
- * КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: убрана проверка на _isFG, т.к. флаг еще не установлен
- */
+// ИЗМЕНЕНО: Поиск похожих имен с полным списком и знаком минус для убытка
+function findSimilarNamesInData(data, headers, cashierKey) {
+  const idKey = headers.find(h => h.includes('игрока') || h.includes('Номер'));
+  const nameKey = headers.find(h => h === 'Игрок' || h.includes('Имя'));
+  
+  if (!idKey || !nameKey) {
+    console.warn('[Processor] Не найдены колонки ID или Name для поиска похожих');
+    return;
+  }
+  
+  // Группируем по кассам для оптимизации O(n²) → O(n×m)
+  const byCashier = {};
+  data.forEach((row, idx) => {
+    if (row._isFG || row._isOverall || row._separator) return;
+    
+    const cashier = String(row[cashierKey] || '').trim();
+    if (!cashier) return;
+    
+    if (!byCashier[cashier]) {
+      byCashier[cashier] = [];
+    }
+    byCashier[cashier].push({ row, idx });
+  });
+  
+  // Для каждой кассы ищем похожие
+  Object.values(byCashier).forEach(players => {
+    players.forEach(({ row, idx }) => {
+      const playerName = String(row[nameKey] || '').trim();
+      if (!playerName || row._isFG || row._isOverall) {
+        return;
+      }
+      
+      const similar = [];
+      
+      players.forEach(({ row: otherRow, idx: otherIdx }) => {
+        if (idx === otherIdx) return;
+        
+        const otherName = String(otherRow[nameKey] || '').trim();
+        if (!otherName || otherRow._isFG || otherRow._isOverall) {
+          return;
+        }
+        
+        const similarity = calculateNameSimilarity(playerName, otherName);
+        
+        if (similarity > 0.70) {
+          const balance = parseFloat(otherRow['Профит']) || 0;
+          similar.push({
+            id: otherRow[idKey],
+            name: otherName,
+            balance: balance
+          });
+        }
+      });
+      
+      // Сортировка по убыточности (от самого минусового)
+      similar.sort((a, b) => a.balance - b.balance);
+      
+      // ИЗМЕНЕНО: Сохраняем ВСЕ найденные похожие имена
+      if (similar.length > 0) {
+        const formatted = similar.map(s => {
+          // Формат: "123456 (-150$)" для убыточных
+          const balanceStr = s.balance < 0 ? ` (-${Math.abs(Math.round(s.balance))}$)` : '';
+          return `${s.id}${balanceStr}`.trim();
+        }).join(', ');
+        
+        data[idx]['Похожие имена'] = formatted;
+      }
+    });
+  });
+}
+
+function calculateNameSimilarity(name1, name2) {
+  const normalize = (name) => name.toLowerCase().replace(/\s+/g, '').replace(/[^\p{L}\p{N}]/gu, '');
+  const n1 = normalize(name1);
+  const n2 = normalize(name2);
+
+  if (n1.length === 0 || n2.length === 0) return 0;
+  if (n1 === n2) return 1;
+
+  const longer = n1.length > n2.length ? n1 : n2;
+  const shorter = n1.length > n2.length ? n2 : n1;
+
+  const distance = levenshteinDistance(shorter, longer);
+  return (longer.length - distance) / longer.length;
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = Array(str1.length + 1).fill(null).map(() => Array(str2.length + 1).fill(null));
+
+  for (let i = 0; i <= str1.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= str2.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= str1.length; i++) {
+    for (let j = 1; j <= str2.length; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return matrix[str1.length][str2.length];
+}
+
 function buildCashierToAgentMapping(data, headers, cashierKey) {
   const mapping = {};
   
@@ -88,7 +181,6 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
     const col0 = String(row[headers[0]] || '').trim();
     const col1 = String(row[headers[1]] || '').trim();
     
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем префикс "ФГ:" напрямую
     let agentName = null;
     let cashierInfo = null;
     
@@ -100,60 +192,39 @@ function buildCashierToAgentMapping(data, headers, cashierKey) {
       cashierInfo = col0;
     }
     
-    // Если это не строка ФГ, пропускаем
     if (!agentName || !cashierInfo) return;
     
-    // Получаем полное имя кассы из основной колонки
     let fullCashierName = String(row[cashierKey] || '').trim();
     if (!fullCashierName) fullCashierName = cashierInfo;
     
     const cashierId = extractCashierId(fullCashierName || cashierInfo);
     
     if (cashierId && agentName) {
-      // Создаем все варианты маппинга для надежности
       mapping[cashierId] = agentName;
       mapping[fullCashierName] = agentName;
       mapping[cashierInfo] = agentName;
       
-      // Нормализованный формат "12345 City" вместо "12345, City"
       const normalized = cashierInfo.replace(/^(\d+),\s*/, '$1 ');
       mapping[normalized] = agentName;
-      
-      console.log('[Processor] Маппинг добавлен:', cashierId, '→', agentName);
     }
   });
   
-  console.log('[Processor] Всего записей в маппинге:', Object.keys(mapping).length);
   return mapping;
 }
 
-/**
- * Извлекает ID кассы из строки
- */
 function extractCashierId(cashierStr) {
   const match = String(cashierStr).match(/(\d+)[,\s]/);
   return match ? match[1] : cashierStr;
 }
 
-/**
- * Группирует данные по кассам и сортирует по профиту
- * ИСПРАВЛЕНО: ФГ теперь наверху, отсортированы по профиту
- */
 function groupData(data, cashierColumn) {
   const headers = Object.keys(data[0]);
   const cashierKey = headers[cashierColumn];
   
-  console.log('[Processor] Группировка по колонке', cashierColumn, '→', cashierKey);
-  console.log('[Processor] Доступные заголовки:', headers);
-  console.log('[Processor] Пример первой строки:', data[0]);
-  
-  // Валидация
   if (!cashierKey) {
-    console.error('[Processor] КРИТИЧЕСКАЯ ОШИБКА: cashierKey не определен!');
     throw new Error(`Колонка с индексом ${cashierColumn} не существует`);
   }
   
-  // Отделяем строки ФГ и обычные строки
   const fgRows = [];
   const playerRows = [];
   let overallRow = null;
@@ -162,55 +233,39 @@ function groupData(data, cashierColumn) {
     const col0 = String(row[headers[0]] || '').trim();
     const col1 = String(row[headers[1]] || '').trim();
     
-    // Проверка на строку ФГ
     if (col0.startsWith('ФГ:') || col1.startsWith('ФГ:')) {
       fgRows.push({ ...row, _isFG: true });
     }
-    // Проверка на Итого/Overall
     else if (col1 === 'Итого' || col1 === 'Overall' || col0 === 'Итого' || col0 === 'Overall') {
       overallRow = { ...row, _isOverall: true };
     }
-    // Обычная строка игрока
     else {
       playerRows.push(row);
     }
   });
   
-  console.log('[Processor] Игроков:', playerRows.length, 'ФГ:', fgRows.length);
-  
-  // Группируем игроков по кассам
   const grouped = {};
-  playerRows.forEach((row, idx) => {
+  playerRows.forEach((row) => {
     const cashier = row[cashierKey] || 'Неизвестно';
-    if (idx === 0) {
-      console.log('[Processor] Пример игрока:', row);
-      console.log('[Processor] Касса из строки:', cashier);
-    }
     if (!grouped[cashier]) {
       grouped[cashier] = [];
     }
     grouped[cashier].push(row);
   });
   
-  console.log('[Processor] Кассы найдены:', Object.keys(grouped));
-  console.log('[Processor] Игроков по кассам:', Object.entries(grouped).map(([k, v]) => `${k}: ${v.length}`));
-  
-  // Сортируем внутри каждой группы по профиту
   Object.keys(grouped).forEach(cashier => {
     grouped[cashier].sort((a, b) => {
       return parseFloat(a['Профит']) - parseFloat(b['Профит']);
     });
   });
   
-  // ИСПРАВЛЕНИЕ: Собираем результат в порядке ФГ → кассы → Итого
   const result = [];
   
-  // 1. Финансовые группы НАВЕРХУ (сортированные по профиту)
   if (fgRows.length > 0) {
     fgRows.sort((a, b) => {
       const profitA = parseFloat(a['Профит']) || 0;
       const profitB = parseFloat(b['Профит']) || 0;
-      return profitA - profitB;  // от меньшего к большему
+      return profitA - profitB;
     });
     
     result.push({
@@ -218,11 +273,8 @@ function groupData(data, cashierColumn) {
       _cashier: '═══ Финансовые группы ═══'
     });
     result.push(...fgRows);
-    
-    console.log('[Processor] ФГ добавлены наверх:', fgRows.length, 'строк');
   }
   
-  // 2. Кассы с игроками
   Object.keys(grouped).sort().forEach(cashier => {
     result.push({
       _separator: true,
@@ -231,7 +283,6 @@ function groupData(data, cashierColumn) {
     result.push(...grouped[cashier]);
   });
   
-  // 3. Итого
   if (overallRow) {
     result.push({
       _separator: true,
@@ -240,7 +291,6 @@ function groupData(data, cashierColumn) {
     result.push(overallRow);
   }
   
-  console.log('[Processor] Результат группировки:', result.length, 'строк');
   return result;
 }
 
@@ -248,11 +298,13 @@ function round2(num) {
   return Math.round(num * 100) / 100;
 }
 
-// В Web Worker нет DOM, экспортируем через глобальный scope
 if (typeof self !== 'undefined' && self.importScripts) {
   self.processData = processData;
   self.groupData = groupData;
   self.round2 = round2;
   self.extractCashierId = extractCashierId;
   self.buildCashierToAgentMapping = buildCashierToAgentMapping;
+  self.findSimilarNamesInData = findSimilarNamesInData;
+  self.calculateNameSimilarity = calculateNameSimilarity;
+  self.levenshteinDistance = levenshteinDistance;
 }

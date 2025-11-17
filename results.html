@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   
   <meta http-equiv="Content-Security-Policy" 
         content="default-src 'self'; 
@@ -11,6 +13,7 @@
                  connect-src 'none';">
   
   <title>Результаты - Cashier Checkup</title>
+  <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/results.css">
 </head>
@@ -18,7 +21,12 @@
   <div class="results-container">
     <header class="results-header">
       <h1>Результаты обработки</h1>
-      <a href="index.html" class="btn-back">← Новая обработка</a>
+      <div class="header-actions">
+        <button id="themeToggle" class="btn-theme" aria-label="Переключить тему">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a href="index.html" class="btn-back">← Новая обработка</a>
+      </div>
     </header>
     
     <nav class="tabs">
@@ -33,11 +41,14 @@
       </button>
     </nav>
     
-    <!-- Сводка ФГ (теперь первый таб) -->
+    <!-- Сводка ФГ -->
     <div id="fgSummary" class="tab-content active">
       <div class="content-header">
         <h2>Сводка по финансовым группам</h2>
         <div class="actions">
+          <button onclick="openColumnModal('fgSummary')" class="btn-secondary">
+            ⚙️ Столбцы
+          </button>
           <button onclick="exportCSV('fgSummary')" class="btn-export">
             💾 Экспорт CSV
           </button>
@@ -53,6 +64,9 @@
       <div class="content-header">
         <h2>Обработанные данные</h2>
         <div class="actions">
+          <button onclick="openColumnModal('calculation')" class="btn-secondary">
+            ⚙️ Столбцы
+          </button>
           <button onclick="exportCSV('processed')" class="btn-export">
             💾 Экспорт CSV
           </button>
@@ -70,6 +84,13 @@
             💾 Экспорт CSV
           </button>
         </div>
+      </div>
+      
+      <!-- Кнопки выбора -->
+      <div style="margin-bottom: 16px; padding: 12px; background: var(--filter-bg); border-radius: 8px; display: flex; align-items: center; gap: 12px;">
+        <button class="btn-secondary" onclick="toggleSelectAll()" style="padding: 8px 16px;">Выбрать все</button>
+        <button class="btn-secondary" onclick="toggleSelectNone()" style="padding: 8px 16px;">Снять все</button>
+        <span id="selectedCount" style="margin-left: 16px; font-weight: 500; color: var(--text-secondary);">Выбрано: 0 из 0</span>
       </div>
       
       <!-- Фильтры -->
@@ -97,6 +118,10 @@
             Высокие выводы
           </label>
           <label class="filter-checkbox">
+            <input type="checkbox" id="filterHighBalancedFlow" checked onchange="applyFraudFilters()">
+            Крупные близкие вводы-выводы
+          </label>
+          <label class="filter-checkbox">
             <input type="checkbox" id="filterAgentSelfPlay" checked onchange="applyFraudFilters()">
             Агент играет
           </label>
@@ -105,12 +130,16 @@
             Пустые
           </label>
           <label class="filter-checkbox">
-            <input type="checkbox" id="filterTrashAccounts" checked onchange="applyFraudFilters()">
+            <input type="checkbox" id="filterTrashAccounts" onchange="applyFraudFilters()">
             Мусорные
           </label>
           <label class="filter-checkbox">
             <input type="checkbox" id="filterMultiAccounts" checked onchange="applyFraudFilters()">
             Мультиаккаунты
+          </label>
+          <label class="filter-checkbox">
+            <input type="checkbox" id="filterAgentTakeover" checked onchange="applyFraudFilters()">
+            Концентрация выводов
           </label>
         </div>
         
@@ -131,6 +160,7 @@
     </div>
   </div>
   
+  <script src="js/theme.js"></script>
   <script src="lib/papaparse.min.js"></script>
   <script src="js/ui/results-renderer.js"></script>
   <script src="js/ui/export.js"></script>
