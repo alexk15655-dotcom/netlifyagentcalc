@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   
   <meta http-equiv="Content-Security-Policy" 
         content="default-src 'self'; 
@@ -11,6 +13,7 @@
                  connect-src 'none';">
   
   <title>Результаты - Cashier Checkup</title>
+  <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/results.css">
 </head>
@@ -18,7 +21,12 @@
   <div class="results-container">
     <header class="results-header">
       <h1>Результаты обработки</h1>
-      <a href="index.html" class="btn-back">← Новая обработка</a>
+      <div class="header-actions">
+        <button id="themeToggle" class="btn-theme" aria-label="Переключить тему">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a href="index.html" class="btn-back">← Новая обработка</a>
+      </div>
     </header>
     
     <nav class="tabs">
@@ -79,10 +87,10 @@
       </div>
       
       <!-- Кнопки выбора -->
-      <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; gap: 12px;">
+      <div style="margin-bottom: 16px; padding: 12px; background: var(--filter-bg); border-radius: 8px; display: flex; align-items: center; gap: 12px;">
         <button class="btn-secondary" onclick="toggleSelectAll()" style="padding: 8px 16px;">Выбрать все</button>
         <button class="btn-secondary" onclick="toggleSelectNone()" style="padding: 8px 16px;">Снять все</button>
-        <span id="selectedCount" style="margin-left: 16px; font-weight: 500; color: #555;">Выбрано: 0 из 0</span>
+        <span id="selectedCount" style="margin-left: 16px; font-weight: 500; color: var(--text-secondary);">Выбрано: 0 из 0</span>
       </div>
       
       <!-- Фильтры -->
@@ -152,6 +160,7 @@
     </div>
   </div>
   
+  <script src="js/theme.js"></script>
   <script src="lib/papaparse.min.js"></script>
   <script src="js/ui/results-renderer.js"></script>
   <script src="js/ui/export.js"></script>
