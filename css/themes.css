@@ -1,0 +1,276 @@
+:root {
+  /* === LIGHT THEME (Default) === */
+  
+  /* Backgrounds */
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f3f5;
+  --bg-gradient-start: #667eea;
+  --bg-gradient-end: #764ba2;
+  --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+  --bg-input: #ffffff;
+  --bg-hover: #f8f9fa;
+  
+  /* Text */
+  --text-primary: #212529;
+  --text-secondary: #495057;
+  --text-muted: #6c757d;
+  --text-inverted: #ffffff;
+  --text-link: #667eea;
+  
+  /* Borders */
+  --border-color: #dee2e6;
+  --border-light: #e9ecef;
+  --border-focus: #667eea;
+  --border-dashed: #ddd;
+  
+  /* Interactive */
+  --link-color: #667eea;
+  --link-hover: #5568d3;
+  --button-primary-bg: linear-gradient(135deg, #667eea, #764ba2);
+  --button-secondary-bg: #f5f5f5;
+  --button-secondary-color: #666;
+  --button-secondary-hover: #e0e0e0;
+  
+  /* Tables */
+  --table-header-bg: #f8f9fa;
+  --table-header-text: #495057;
+  --table-hover: #f8f9fa;
+  --table-separator: #667eea;
+  --table-separator-text: #ffffff;
+  --table-border: #e9ecef;
+  --table-fg-row: #fff3cd;
+  --table-fg-hover: #ffe69c;
+  --table-overall-row: #d1ecf1;
+  --table-overall-hover: #bee5eb;
+  
+  /* Status colors */
+  --positive: #28a745;
+  --negative: #dc3545;
+  --warning: #ffc107;
+  --info: #17a2b8;
+  
+  /* Severity badges */
+  --severity-critical: #dc3545;
+  --severity-high: #fd7e14;
+  --severity-medium: #ffc107;
+  --severity-medium-text: #212529;
+  --severity-low: #28a745;
+  
+  /* Fraud analysis */
+  --fraud-bg: #ffffff;
+  --fraud-border: #dee2e6;
+  --fraud-details-text: #495057;
+  --agent-separator: linear-gradient(to right, #667eea, transparent);
+  --cashier-header-bg: #f8f9fa;
+  --cashier-header-border: #667eea;
+  --cashier-header-text: #888;
+  
+  /* Filters */
+  --filter-bg: #f8f9fa;
+  --filter-checkbox-hover: #e9ecef;
+  --filter-checkbox-text: #495057;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.3);
+  
+  /* Privacy badge */
+  --privacy-bg: rgba(76, 175, 80, 0.95);
+  --privacy-text: white;
+  
+  /* Empty state */
+  --empty-state-text: #6c757d;
+  --empty-state-icon: #6c757d;
+  
+  /* Stat cards */
+  --stat-card-bg: #f8f9fa;
+  --stat-card-border: #667eea;
+  --stat-card-label: #6c757d;
+  --stat-card-value: #212529;
+  
+  /* Scrollbar */
+  --scrollbar-track: #f1f3f5;
+  --scrollbar-thumb: #adb5bd;
+  --scrollbar-thumb-hover: #868e96;
+}
+
+/* === DARK THEME === */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #3a3a3a;
+  --bg-gradient-start: #1a1a2e;
+  --bg-gradient-end: #16213e;
+  --bg-modal-overlay: rgba(0, 0, 0, 0.8);
+  --bg-input: #3a3a3a;
+  --bg-hover: #353535;
+  
+  /* Text */
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #808080;
+  --text-inverted: #1a1a1a;
+  --text-link: #7c8adb;
+  
+  /* Borders */
+  --border-color: #404040;
+  --border-light: #333333;
+  --border-focus: #5a67d8;
+  --border-dashed: #404040;
+  
+  /* Interactive */
+  --link-color: #7c8adb;
+  --link-hover: #9099e6;
+  --button-primary-bg: linear-gradient(135deg, #5a67d8, #6b46c1);
+  --button-secondary-bg: #3a3a3a;
+  --button-secondary-color: #b0b0b0;
+  --button-secondary-hover: #454545;
+  
+  /* Tables */
+  --table-header-bg: #2d2d2d;
+  --table-header-text: #b0b0b0;
+  --table-hover: #353535;
+  --table-separator: #4a5568;
+  --table-separator-text: #e0e0e0;
+  --table-border: #404040;
+  --table-fg-row: #4a4520;
+  --table-fg-hover: #5a5530;
+  --table-overall-row: #1e3a4a;
+  --table-overall-hover: #2a4a5a;
+  
+  /* Status colors */
+  --positive: #48bb78;
+  --negative: #f56565;
+  --warning: #ecc94b;
+  --info: #4299e1;
+  
+  /* Severity badges */
+  --severity-critical: #f56565;
+  --severity-high: #ed8936;
+  --severity-medium: #ecc94b;
+  --severity-medium-text: #1a1a1a;
+  --severity-low: #48bb78;
+  
+  /* Fraud analysis */
+  --fraud-bg: #2d2d2d;
+  --fraud-border: #404040;
+  --fraud-details-text: #b0b0b0;
+  --agent-separator: linear-gradient(to right, #5a67d8, transparent);
+  --cashier-header-bg: #3a3a3a;
+  --cashier-header-border: #5a67d8;
+  --cashier-header-text: #808080;
+  
+  /* Filters */
+  --filter-bg: #2d2d2d;
+  --filter-checkbox-hover: #3a3a3a;
+  --filter-checkbox-text: #b0b0b0;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.6);
+  
+  /* Privacy badge */
+  --privacy-bg: rgba(72, 187, 120, 0.95);
+  --privacy-text: white;
+  
+  /* Empty state */
+  --empty-state-text: #808080;
+  --empty-state-icon: #808080;
+  
+  /* Stat cards */
+  --stat-card-bg: #3a3a3a;
+  --stat-card-border: #5a67d8;
+  --stat-card-label: #808080;
+  --stat-card-value: #e0e0e0;
+  
+  /* Scrollbar */
+  --scrollbar-track: #2d2d2d;
+  --scrollbar-thumb: #555555;
+  --scrollbar-thumb-hover: #666666;
+}
+
+/* Плавные переходы при смене темы */
+body,
+.container,
+.privacy-badge,
+.file-input-wrapper,
+.config,
+.btn-primary,
+.btn-secondary,
+.status,
+.data-table th,
+.data-table td,
+.tab-btn,
+.tab-content,
+.fraud-case,
+.fraud-filters,
+.filter-checkbox,
+.column-modal-content,
+.player-search-container,
+.cashier-header,
+.stat-card {
+  transition: background-color 0.3s ease, 
+              border-color 0.3s ease, 
+              color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+
+/* Исключения (без transition) */
+input:focus,
+select:focus,
+textarea:focus,
+button:active,
+.theme-icon {
+  transition: none;
+}
+
+/* Кнопка переключения темы */
+.btn-theme {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 20px;
+  transition: all 0.2s;
+  margin-right: 12px;
+}
+
+.btn-theme:hover {
+  transform: scale(1.1);
+  background: var(--bg-hover);
+}
+
+.theme-icon {
+  display: inline-block;
+}
+
+[data-theme="dark"] .theme-icon {
+  filter: brightness(1.2);
+}
+
+/* Header actions container */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 768px) {
+  .btn-theme {
+    font-size: 18px;
+    padding: 6px 10px;
+  }
+  
+  .header-actions {
+    flex-direction: row;
+    gap: 8px;
+  }
+}

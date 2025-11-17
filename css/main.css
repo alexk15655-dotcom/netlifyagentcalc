@@ -6,15 +6,15 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
   min-height: 100vh;
   padding: 20px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .privacy-badge {
-  background: rgba(76, 175, 80, 0.95);
-  color: white;
+  background: var(--privacy-bg);
+  color: var(--privacy-text);
   padding: 10px 20px;
   border-radius: 8px;
   text-align: center;
@@ -22,16 +22,16 @@ body {
   font-weight: 500;
   margin: 0 auto 20px;
   max-width: 800px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .container {
   max-width: 800px;
   margin: 0 auto;
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 40px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 header {
@@ -42,19 +42,19 @@ header {
 h1 {
   font-size: 32px;
   font-weight: 700;
-  color: #667eea;
+  color: var(--link-color);
   margin-bottom: 8px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 h2 {
   font-size: 20px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 20px;
 }
 
@@ -66,14 +66,15 @@ h2 {
 .file-input-wrapper {
   margin-bottom: 20px;
   padding: 20px;
-  border: 2px dashed #ddd;
+  border: 2px dashed var(--border-dashed);
   border-radius: 8px;
   transition: all 0.3s;
+  background: var(--bg-secondary);
 }
 
 .file-input-wrapper:hover {
-  border-color: #667eea;
-  background: #f8f9ff;
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
 }
 
 .file-label {
@@ -81,7 +82,7 @@ h2 {
   align-items: center;
   gap: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-secondary);
   cursor: pointer;
   margin-bottom: 8px;
 }
@@ -97,7 +98,7 @@ input[type="file"] {
 .filename {
   display: block;
   font-size: 13px;
-  color: #999;
+  color: var(--text-muted);
   margin-left: 36px;
 }
 
@@ -105,7 +106,7 @@ input[type="file"] {
 .config {
   margin-bottom: 30px;
   padding: 30px;
-  background: #f8f9ff;
+  background: var(--bg-tertiary);
   border-radius: 8px;
 }
 
@@ -123,28 +124,30 @@ input[type="file"] {
 .config-item label {
   font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
 .config-item select,
 .config-item input[type="number"] {
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   transition: border-color 0.2s;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .config-item select:focus,
 .config-item input[type="number"]:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--border-focus);
 }
 
 .hint {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
@@ -159,6 +162,7 @@ input[type="file"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
+  accent-color: var(--link-color);
 }
 
 .checkbox-item label {
@@ -183,20 +187,20 @@ input[type="file"] {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--button-primary-bg);
+  color: var(--text-inverted);
 }
 
 .btn-secondary {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-color);
   margin-bottom: 16px;
   font-size: 14px;
   font-weight: 500;
 }
 
 .btn-secondary:hover {
-  background: #e0e0e0;
+  background: var(--button-secondary-hover);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -205,7 +209,7 @@ input[type="file"] {
 }
 
 .btn-primary:disabled {
-  background: #ccc;
+  background: var(--text-muted);
   cursor: not-allowed;
   transform: none;
 }
@@ -214,15 +218,15 @@ input[type="file"] {
 .advanced-settings {
   margin-top: 16px;
   padding: 24px;
-  background: white;
-  border: 2px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-light);
   border-radius: 8px;
 }
 
 .advanced-settings h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   margin-bottom: 16px;
 }
 
@@ -238,39 +242,42 @@ input[type="file"] {
 
 .status.status-info {
   display: block;
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--bg-tertiary);
+  color: var(--info);
+  border: 1px solid var(--info);
 }
 
 .status.status-success {
   display: block;
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--bg-tertiary);
+  color: var(--positive);
+  border: 1px solid var(--positive);
 }
 
 .status.status-error {
   display: block;
-  background: #ffebee;
-  color: #c62828;
+  background: var(--bg-tertiary);
+  color: var(--negative);
+  border: 1px solid var(--negative);
 }
 
 /* Footer */
 footer {
   text-align: center;
   margin-top: 20px;
-  color: white;
+  color: var(--text-inverted);
   font-size: 14px;
 }
 
 footer a {
-  color: white;
+  color: var(--text-inverted);
   text-decoration: none;
   border-bottom: 1px solid rgba(255,255,255,0.3);
   transition: border-color 0.2s;
 }
 
 footer a:hover {
-  border-bottom-color: white;
+  border-bottom-color: var(--text-inverted);
 }
 
 footer span {
